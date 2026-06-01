@@ -448,15 +448,30 @@ async function limparArquivoSalvo() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// INPUT DE ARQUIVO
+// INPUT DE ARQUIVO — usa FileReader para máxima compatibilidade
 // ══════════════════════════════════════════════════════════════════════
+function lerArquivo(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result); // retorna ArrayBuffer
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 document.getElementById('fileInput').addEventListener('change', async function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (!file.name.match(/\.(xlsx|xls)$/i)) { mostrarToast('Selecione um arquivo .xlsx ou .xls'); return; }
-
-  const buf = await file.arrayBuffer();
-  await processarBuffer(buf, file.name, true);
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    mostrarToast('Selecione um arquivo .xlsx ou .xls');
+    return;
+  }
+  try {
+    const buf = await lerArquivo(file);
+    await processarBuffer(buf, file.name, true);
+  } catch(err) {
+    mostrarErro(err.message);
+  }
   e.target.value = '';
 });
 
@@ -466,7 +481,16 @@ function acharAba(wb, termo) {
   return wb.SheetNames.find(s => s.toLowerCase().includes(t)) || null;
 }
 
+function mostrarErro(msg) {
+  document.getElementById('welcome').style.display = 'flex';
+  document.getElementById('dashboard').classList.remove('visible');
+  const el = document.getElementById('erroMsg');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+
 async function processarBuffer(buf, nome, salvar = false) {
+  document.getElementById('erroMsg').style.display = 'none';
   document.getElementById('welcome').style.display = 'none';
   document.getElementById('dashboard').classList.remove('visible');
   document.getElementById('loading').classList.add('visible');
@@ -474,32 +498,30 @@ async function processarBuffer(buf, nome, salvar = false) {
   await new Promise(r => setTimeout(r, 80));
 
   try {
-    // Uint8Array é mais seguro que ArrayBuffer puro com SheetJS
-    const data = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const wb   = XLSX.read(data, { type:'array', cellDates: true });
+    // Copia o buffer antes de passar ao SheetJS (evita detachment)
+    const arrBuf = buf instanceof ArrayBuffer ? buf : (buf.buffer || buf);
+    const bytes  = new Uint8Array(arrBuf.slice(0));
+    const wb     = XLSX.read(bytes, { type: 'array', cellDates: true });
 
     console.log('Abas encontradas:', wb.SheetNames);
 
-    // Localiza abas por palavra-chave (insensível a acentos, maiúsculas e variações de nome)
     const nomeAmex      = acharAba(wb, 'amex');
     const nomeVisa      = acharAba(wb, 'visa');
     const nomeParcelas  = acharAba(wb, 'parcela');
     const nomeHistorico = acharAba(wb, 'hist');
 
-    if (!nomeAmex)      throw new Error(`Aba de lançamentos AMEX não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
-    if (!nomeVisa)      throw new Error(`Aba de lançamentos VISA não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
-    if (!nomeParcelas)  throw new Error(`Aba "Parcelas" não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
-    if (!nomeHistorico) throw new Error(`Aba "Histórico" não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
+    if (!nomeAmex)      throw new Error('Aba AMEX não encontrada. Abas: ' + wb.SheetNames.join(', '));
+    if (!nomeVisa)      throw new Error('Aba VISA não encontrada. Abas: ' + wb.SheetNames.join(', '));
+    if (!nomeParcelas)  throw new Error('Aba Parcelas não encontrada. Abas: ' + wb.SheetNames.join(', '));
+    if (!nomeHistorico) throw new Error('Aba Histórico não encontrada. Abas: ' + wb.SheetNames.join(', '));
 
-    estado.lancamentosAMEX = lerLancamentos(wb.Sheets[nomeAmex],    'AMEX');
-    estado.lancamentosVISA = lerLancamentos(wb.Sheets[nomeVisa],    'VISA');
+    estado.lancamentosAMEX = lerLancamentos(wb.Sheets[nomeAmex],     'AMEX');
+    estado.lancamentosVISA = lerLancamentos(wb.Sheets[nomeVisa],     'VISA');
     estado.parcelas        = lerParcelas(wb.Sheets[nomeParcelas]);
     estado.historico       = lerHistorico(wb.Sheets[nomeHistorico]);
 
-    console.log('AMEX:', estado.lancamentosAMEX.length, 'linhas');
-    console.log('VISA:', estado.lancamentosVISA.length, 'linhas');
-    console.log('Parcelas:', estado.parcelas.length, 'itens');
-    console.log('Histórico:', estado.historico.length, 'meses');
+    console.log('AMEX:', estado.lancamentosAMEX.length, 'VISA:', estado.lancamentosVISA.length,
+                'Parcelas:', estado.parcelas.length, 'Histórico:', estado.historico.length);
 
     const mesesSet = new Set([
       ...estado.lancamentosAMEX.map(l => l.mes),
@@ -507,14 +529,17 @@ async function processarBuffer(buf, nome, salvar = false) {
     ]);
     estado.meses = MESES_ORDEM.filter(m => mesesSet.has(m));
 
-    // Salvar no IndexedDB apenas quando o usuário escolheu o arquivo
     if (salvar) {
-      await salvarNoDB(buf, nome);
-      mostrarToast('Planilha salva no navegador. Ela será carregada automaticamente na próxima visita.', 'success');
+      // Salva uma cópia limpa do buffer original
+      try {
+        await salvarNoDB(arrBuf.slice(0), nome);
+        mostrarToast('Planilha salva — será carregada automaticamente na próxima visita.', 'success');
+      } catch(dbErr) {
+        console.warn('IndexedDB falhou:', dbErr);
+      }
     }
 
-    const agora = new Date();
-    document.getElementById('fileInfo').textContent = nome + ' · ' + agora.toLocaleDateString('pt-BR');
+    document.getElementById('fileInfo').textContent = nome + ' · ' + new Date().toLocaleDateString('pt-BR');
     document.getElementById('btnCarregar').style.display = 'none';
     document.getElementById('btnTrocar').style.display   = '';
 
@@ -522,10 +547,7 @@ async function processarBuffer(buf, nome, salvar = false) {
 
   } catch(err) {
     console.error(err);
-    // Mostra erro visível e persistente na tela (não some como o toast)
-    document.getElementById('welcome').style.display = 'flex';
-    document.getElementById('erroMsg').textContent = '⚠️ ' + err.message;
-    document.getElementById('erroMsg').style.display = 'block';
+    mostrarErro(err.message);
   }
 
   document.getElementById('loading').classList.remove('visible');
@@ -537,17 +559,17 @@ async function processarBuffer(buf, nome, salvar = false) {
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     const salvo = await carregarDoDB();
-    if (salvo) {
-      // Mostrar banner antes de processar
+    if (salvo && salvo.data && salvo.data.byteLength > 0) {
       document.getElementById('savedFileName').textContent = salvo.nome;
       const dt = new Date(salvo.salvoEm);
-      document.getElementById('savedDate').textContent = 'Salvo em ' + dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+      document.getElementById('savedDate').textContent =
+        'Salvo em ' + dt.toLocaleDateString('pt-BR') + ' às ' +
+        dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       document.getElementById('savedBanner').classList.add('visible');
-
       await processarBuffer(salvo.data, salvo.nome, false);
     }
   } catch(e) {
-    console.warn('Não foi possível carregar planilha salva:', e);
+    console.warn('Erro ao carregar planilha salva:', e);
   }
 });
 
