@@ -654,7 +654,7 @@ function renderCards() {
 
   // Determina o rótulo do cabeçalho
   const labelMes = todos ? 'Todos os meses' : (filtro === 'ultimo' ? estado.meses[estado.meses.length - 1] : filtro);
-  document.getElementById('mesAtual').textContent = labelMes || '—';
+  // atualiza o título do select para refletir o mês selecionado (sem elemento separado)
 
   // Filtra lançamentos
   const lancAMEX = todos ? estado.lancamentosAMEX : estado.lancamentosAMEX.filter(l => l.mes === labelMes);
