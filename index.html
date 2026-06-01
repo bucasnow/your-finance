@@ -1,0 +1,887 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Finance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --surface2: #22222d;
+      --border: #2a2a35;
+      --border-hover: #3d3d50;
+      --amex: #c9a84c;
+      --amex-dim: rgba(201,168,76,.15);
+      --visa: #4a9eff;
+      --visa-dim: rgba(74,158,255,.15);
+      --green: #4caf7d;
+      --red: #e05c5c;
+      --text: #f0f0f5;
+      --text2: #888899;
+      --text3: #55556a;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,15,19,.88); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: .9rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    }
+    .logo { display: flex; align-items: center; gap: .75rem; }
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--amex), #e8c46a);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-weight: 500; font-size: 1.1rem; color: #0f0f13; flex-shrink: 0;
+    }
+    .logo-text h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -.02em; }
+    .logo-text p  { font-size: .72rem; color: var(--text2); font-weight: 400; }
+
+    .header-right { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .file-info { font-size: .78rem; color: var(--text2); font-family: 'DM Mono', monospace; }
+
+    .btn { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem 1.1rem; font-family: 'DM Sans', sans-serif; font-size: .82rem; font-weight: 600; border: none; border-radius: var(--radius-sm); cursor: pointer; transition: opacity .2s, transform .15s; white-space: nowrap; }
+    .btn:hover { opacity: .88; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary { background: linear-gradient(135deg, var(--amex), #e8c46a); color: #0f0f13; }
+    .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+    .btn-secondary:hover { color: var(--text); border-color: var(--border-hover); }
+    #fileInput { display: none; }
+
+    /* ── MAIN ── */
+    main { padding: 2rem 1.5rem; max-width: 1400px; margin: 0 auto; }
+    @media (min-width: 768px) { main { padding: 2.5rem; } }
+
+    /* ── WELCOME ── */
+    #welcome {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 70vh; text-align: center; gap: 2rem;
+    }
+    .welcome-icon {
+      width: 90px; height: 90px;
+      background: linear-gradient(135deg, var(--amex), #e8c46a);
+      border-radius: 24px; display: flex; align-items: center; justify-content: center;
+      font-size: 2.8rem; box-shadow: 0 20px 60px rgba(201,168,76,.25);
+    }
+    #welcome h2 { font-size: 1.9rem; font-weight: 700; letter-spacing: -.03em; }
+    #welcome p  { color: var(--text2); max-width: 380px; font-size: .95rem; line-height: 1.7; }
+    .welcome-steps { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .welcome-step {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem 1.25rem; font-size: .82rem; color: var(--text2);
+      display: flex; align-items: center; gap: .6rem; max-width: 200px;
+    }
+    .welcome-step span:first-child { font-size: 1.2rem; flex-shrink: 0; }
+    .btn-welcome {
+      padding: .8rem 2rem;
+      background: linear-gradient(135deg, var(--amex), #e8c46a);
+      color: #0f0f13; font-family: 'DM Sans', sans-serif; font-size: .95rem; font-weight: 700;
+      border: none; border-radius: var(--radius); cursor: pointer;
+      transition: opacity .2s, box-shadow .2s, transform .15s;
+      box-shadow: 0 8px 30px rgba(201,168,76,.3);
+    }
+    .btn-welcome:hover { opacity: .88; box-shadow: 0 12px 40px rgba(201,168,76,.4); transform: translateY(-2px); }
+
+    /* ── DASHBOARD ── */
+    #dashboard { display: none; flex-direction: column; gap: 2rem; }
+    #dashboard.visible { display: flex; }
+
+    .section-title { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: var(--text3); margin-bottom: .75rem; }
+
+    /* ── CARDS ── */
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .875rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1.25rem; transition: border-color .2s, box-shadow .2s, transform .2s;
+      animation: fadeSlideUp .4s ease both;
+    }
+    .card:hover { border-color: var(--border-hover); box-shadow: 0 8px 30px rgba(0,0,0,.3); transform: translateY(-2px); }
+    .card-label { font-size: .72rem; color: var(--text2); font-weight: 500; margin-bottom: .5rem; display: flex; align-items: center; gap: .4rem; }
+    .card-value { font-family: 'DM Mono', monospace; font-size: 1.3rem; font-weight: 500; letter-spacing: -.02em; }
+    .card-sub   { font-size: .72rem; color: var(--text3); margin-top: .3rem; font-family: 'DM Mono', monospace; }
+
+    .card.amex  { border-top: 2px solid var(--amex); }  .card.amex  .card-value { color: var(--amex); }
+    .card.visa  { border-top: 2px solid var(--visa); }  .card.visa  .card-value { color: var(--visa); }
+    .card.total { border-top: 2px solid var(--green); } .card.total .card-value { color: var(--green); }
+    .card.alert .card-value { color: var(--red); }
+
+    /* ── CHARTS ── */
+    .charts-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+    @media (min-width: 900px) { .charts-grid { grid-template-columns: 1.6fr 1fr; } }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+    .chart-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+    .chart-title  { font-size: .9rem; font-weight: 600; }
+    .chart-filters { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+    select.filter {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: .78rem;
+      padding: .35rem .65rem; cursor: pointer; outline: none; transition: border-color .2s;
+    }
+    select.filter:hover, select.filter:focus { border-color: var(--border-hover); }
+
+    /* ── TABLES ── */
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .table-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .table-title  { font-size: .9rem; font-weight: 600; }
+    .table-filters { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .table-scroll { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    th { background: var(--surface2); color: var(--text2); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; padding: .7rem 1rem; text-align: left; white-space: nowrap; }
+    td { padding: .75rem 1rem; border-top: 1px solid var(--border); white-space: nowrap; color: var(--text); }
+    tr:hover td { background: rgba(255,255,255,.025); }
+    td.mono { font-family: 'DM Mono', monospace; }
+    td.red  { color: var(--red); }
+    td.green { color: var(--green); }
+
+    /* ── BADGES ── */
+    .badge { display: inline-flex; align-items: center; padding: .2rem .55rem; border-radius: 5px; font-size: .68rem; font-weight: 600; letter-spacing: .03em; }
+    .badge-amex   { background: var(--amex-dim); color: var(--amex); }
+    .badge-visa   { background: var(--visa-dim); color: var(--visa); }
+    .badge-parcel { background: rgba(201,168,76,.12); color: var(--amex); }
+    .badge-avista { background: rgba(136,136,153,.08); color: var(--text2); }
+
+    /* ── PROGRESS ── */
+    .progress-wrap { width: 100px; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--amex), var(--green)); transition: width .4s ease; }
+
+    /* ── ANIMAÇÕES ── */
+    @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    .card:nth-child(1){animation-delay:.05s} .card:nth-child(2){animation-delay:.10s}
+    .card:nth-child(3){animation-delay:.15s} .card:nth-child(4){animation-delay:.20s}
+    .card:nth-child(5){animation-delay:.25s} .card:nth-child(6){animation-delay:.30s}
+    .card:nth-child(7){animation-delay:.35s}
+
+    .empty { text-align: center; padding: 3rem; color: var(--text3); font-size: .85rem; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      color: #fff; padding: .85rem 1.25rem; border-radius: var(--radius-sm);
+      font-size: .83rem; font-weight: 500; max-width: 340px; z-index: 999;
+      opacity: 0; transform: translateY(10px); pointer-events: none;
+      transition: opacity .3s, transform .3s;
+    }
+    #toast.error   { background: var(--red); }
+    #toast.success { background: var(--green); color: #0f0f13; }
+    #toast.show    { opacity: 1; transform: translateY(0); }
+
+    /* ── LOADING ── */
+    #loading { display: none; align-items: center; justify-content: center; gap: .75rem; color: var(--text2); padding: 4rem; font-size: .9rem; }
+    #loading.visible { display: flex; }
+    .spinner { width: 22px; height: 22px; border: 2.5px solid var(--border); border-top-color: var(--amex); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── BANNER ARQUIVO SALVO ── */
+    #savedBanner {
+      display: none; align-items: center; gap: .75rem; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 1rem 1.25rem; margin-bottom: .5rem;
+    }
+    #savedBanner.visible { display: flex; }
+    #savedBanner p { font-size: .83rem; color: var(--text2); flex: 1; }
+    #savedBanner strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">D</div>
+    <div class="logo-text">
+      <h1>Your Finance</h1>
+      <p>Dashboard financeiro</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="file-info" id="fileInfo"></span>
+    <button class="btn btn-secondary" id="btnTrocar" style="display:none" onclick="document.getElementById('fileInput').click()">⇄ Trocar planilha</button>
+    <button class="btn btn-primary" id="btnCarregar" onclick="document.getElementById('fileInput').click()">↑ Carregar planilha</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  </div>
+</header>
+
+<main>
+
+  <!-- Tela de boas-vindas -->
+  <div id="welcome">
+    <div class="welcome-icon">💰</div>
+    <div>
+      <h2>Bem-vindo ao Your Finance</h2>
+      <p>Seu dashboard financeiro pessoal. Carregue a planilha para visualizar seus gastos, parcelas e evolução mensal.</p>
+    </div>
+    <div class="welcome-steps">
+      <div class="welcome-step"><span>📂</span><span>Selecione o arquivo <strong>Dash fina.xlsx</strong></span></div>
+      <div class="welcome-step"><span>📊</span><span>Gráficos e tabelas gerados automaticamente</span></div>
+      <div class="welcome-step"><span>🔒</span><span>Seus dados ficam salvos no navegador — sem servidores</span></div>
+    </div>
+    <button class="btn-welcome" onclick="document.getElementById('fileInput').click()">📂 Selecionar planilha</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading"><div class="spinner"></div> Processando planilha…</div>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+
+    <!-- Banner arquivo salvo -->
+    <div id="savedBanner">
+      <span>💾</span>
+      <p>Planilha salva: <strong id="savedFileName"></strong> — carregada automaticamente. <span style="color:var(--text3);font-size:.75rem" id="savedDate"></span></p>
+      <button class="btn btn-secondary" style="font-size:.75rem;padding:.35rem .75rem" onclick="limparArquivoSalvo()">✕ Esquecer arquivo</button>
+    </div>
+
+    <!-- 1. Cards resumo -->
+    <section id="secCards">
+      <div class="section-title">Resumo — <span id="mesAtual">—</span></div>
+      <div class="cards-grid" id="cardsGrid"></div>
+    </section>
+
+    <!-- 2. Gráficos -->
+    <section>
+      <div class="section-title">Análises</div>
+      <div class="charts-grid">
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <span class="chart-title">Evolução mensal</span>
+          </div>
+          <canvas id="chartEvolucao" height="260"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <span class="chart-title">Gastos por categoria</span>
+            <div class="chart-filters">
+              <select class="filter" id="filtroMesCat" onchange="renderCategoria()">
+                <option value="todos">Todos os meses</option>
+              </select>
+              <select class="filter" id="filtroCartaoCat" onchange="renderCategoria()">
+                <option value="todos">AMEX + VISA</option>
+                <option value="AMEX">AMEX</option>
+                <option value="VISA">VISA</option>
+              </select>
+            </div>
+          </div>
+          <canvas id="chartCategoria" height="260"></canvas>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. Parcelas -->
+    <section>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">💳 Parcelas em aberto</span>
+          <span class="file-info" id="parcelasResumo"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Cartão</th><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Progresso</th><th>Falta pagar</th></tr></thead>
+            <tbody id="tbodyParcelas"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Lançamentos -->
+    <section>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">📋 Últimos lançamentos</span>
+          <div class="table-filters">
+            <select class="filter" id="filtroMesLanc" onchange="renderLancamentos()"><option value="todos">Todos os meses</option></select>
+            <select class="filter" id="filtroCartaoLanc" onchange="renderLancamentos()">
+              <option value="todos">AMEX + VISA</option>
+              <option value="AMEX">AMEX</option>
+              <option value="VISA">VISA</option>
+            </select>
+            <select class="filter" id="filtroCategLanc" onchange="renderLancamentos()"><option value="todos">Todas categorias</option></select>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Mês</th><th>Data</th><th>Descrição</th><th>Categoria</th><th>Cartão</th><th>Tipo</th><th>Valor</th></tr></thead>
+            <tbody id="tbodyLanc"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /dashboard -->
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// CONSTANTES
+// ══════════════════════════════════════════════════════════════════════
+const MESES_ORDEM = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+const CAT_CORES = {
+  'Alimentação':'#f97316','Compras':'#a78bfa','Saúde':'#34d399',
+  'Transporte':'#60a5fa','Lazer':'#f472b6','Tecnologia':'#38bdf8',
+  'Viagem':'#fb923c','Casa':'#4ade80','Seguros':'#fbbf24',
+  'Tarifas':'#94a3b8','Outros':'#6b7280',
+};
+
+let estado = { lancamentosAMEX:[], lancamentosVISA:[], parcelas:[], historico:[], meses:[] };
+let chartEvolucao = null;
+let chartCategoria = null;
+
+// ══════════════════════════════════════════════════════════════════════
+// UTILITÁRIOS
+// ══════════════════════════════════════════════════════════════════════
+const brl = v => (v == null || isNaN(v))
+  ? '—'
+  : Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+
+const num = v => {
+  if (v == null || v === '') return 0;
+  if (typeof v === 'number') return v;
+  return parseFloat(String(v).replace(',','.')) || 0;
+};
+
+// Lê valor de célula pelo endereço absoluto (linha e coluna 0-indexadas)
+const cel = (sheet, r, c) => {
+  const addr = XLSX.utils.encode_cell({ r, c });
+  const cell = sheet[addr];
+  if (!cell) return null;
+  // Para datas, retorna objeto Date
+  if (cell.t === 'd') return cell.v;
+  return cell.v ?? null;
+};
+
+const celStr  = (sheet, r, c) => String(cel(sheet, r, c) ?? '').trim();
+const celNum  = (sheet, r, c) => num(cel(sheet, r, c));
+
+// Descobre última linha usada na planilha a partir de um range
+const ultimaLinha = sheet => {
+  if (!sheet['!ref']) return 0;
+  return XLSX.utils.decode_range(sheet['!ref']).e.r;
+};
+
+function mostrarToast(msg, tipo = 'error') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `${tipo} show`;
+  setTimeout(() => t.classList.remove('show'), 4500);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INDEXEDDB — PERSISTÊNCIA DO ARQUIVO
+// ══════════════════════════════════════════════════════════════════════
+const DB_NAME    = 'YourFinanceDB';
+const DB_VERSION = 1;
+const STORE      = 'files';
+const FILE_KEY   = 'planilha';
+
+function abrirDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+    req.onsuccess  = e => resolve(e.target.result);
+    req.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function salvarNoDB(arrayBuffer, nome) {
+  const db = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put({ data: arrayBuffer, nome, salvoEm: new Date().toISOString() }, FILE_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function carregarDoDB() {
+  const db = await abrirDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(FILE_KEY);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function limparArquivoSalvo() {
+  const db = await abrirDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(FILE_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+  document.getElementById('savedBanner').classList.remove('visible');
+  mostrarToast('Arquivo esquecido. Carregue um novo quando quiser.', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INPUT DE ARQUIVO
+// ══════════════════════════════════════════════════════════════════════
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!file.name.match(/\.(xlsx|xls)$/i)) { mostrarToast('Selecione um arquivo .xlsx ou .xls'); return; }
+
+  const buf = await file.arrayBuffer();
+  await processarBuffer(buf, file.name, true);
+  e.target.value = '';
+});
+
+// Encontra aba pelo nome — busca substring, case-insensitive, sem depender de acentos
+function acharAba(wb, termo) {
+  const t = termo.toLowerCase();
+  return wb.SheetNames.find(s => s.toLowerCase().includes(t)) || null;
+}
+
+async function processarBuffer(buf, nome, salvar = false) {
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('dashboard').classList.remove('visible');
+  document.getElementById('loading').classList.add('visible');
+
+  await new Promise(r => setTimeout(r, 80));
+
+  try {
+    // Uint8Array é mais seguro que ArrayBuffer puro com SheetJS
+    const data = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    const wb   = XLSX.read(data, { type:'array', cellDates: true });
+
+    console.log('Abas encontradas:', wb.SheetNames);
+
+    // Localiza abas por palavra-chave (insensível a acentos, maiúsculas e variações de nome)
+    const nomeAmex      = acharAba(wb, 'amex');
+    const nomeVisa      = acharAba(wb, 'visa');
+    const nomeParcelas  = acharAba(wb, 'parcela');
+    const nomeHistorico = acharAba(wb, 'hist');
+
+    if (!nomeAmex)      throw new Error(`Aba de lançamentos AMEX não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
+    if (!nomeVisa)      throw new Error(`Aba de lançamentos VISA não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
+    if (!nomeParcelas)  throw new Error(`Aba "Parcelas" não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
+    if (!nomeHistorico) throw new Error(`Aba "Histórico" não encontrada. Abas disponíveis: ${wb.SheetNames.join(', ')}`);
+
+    estado.lancamentosAMEX = lerLancamentos(wb.Sheets[nomeAmex],    'AMEX');
+    estado.lancamentosVISA = lerLancamentos(wb.Sheets[nomeVisa],    'VISA');
+    estado.parcelas        = lerParcelas(wb.Sheets[nomeParcelas]);
+    estado.historico       = lerHistorico(wb.Sheets[nomeHistorico]);
+
+    console.log('AMEX:', estado.lancamentosAMEX.length, 'linhas');
+    console.log('VISA:', estado.lancamentosVISA.length, 'linhas');
+    console.log('Parcelas:', estado.parcelas.length, 'itens');
+    console.log('Histórico:', estado.historico.length, 'meses');
+
+    const mesesSet = new Set([
+      ...estado.lancamentosAMEX.map(l => l.mes),
+      ...estado.lancamentosVISA.map(l => l.mes),
+    ]);
+    estado.meses = MESES_ORDEM.filter(m => mesesSet.has(m));
+
+    // Salvar no IndexedDB apenas quando o usuário escolheu o arquivo
+    if (salvar) {
+      await salvarNoDB(buf, nome);
+      mostrarToast('Planilha salva no navegador. Ela será carregada automaticamente na próxima visita.', 'success');
+    }
+
+    const agora = new Date();
+    document.getElementById('fileInfo').textContent = nome + ' · ' + agora.toLocaleDateString('pt-BR');
+    document.getElementById('btnCarregar').style.display = 'none';
+    document.getElementById('btnTrocar').style.display   = '';
+
+    renderDashboard();
+
+  } catch(err) {
+    console.error(err);
+    mostrarToast('Erro: ' + err.message);
+    document.getElementById('welcome').style.display = 'flex';
+  }
+
+  document.getElementById('loading').classList.remove('visible');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CARGA AUTOMÁTICA AO ABRIR
+// ══════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const salvo = await carregarDoDB();
+    if (salvo) {
+      // Mostrar banner antes de processar
+      document.getElementById('savedFileName').textContent = salvo.nome;
+      const dt = new Date(salvo.salvoEm);
+      document.getElementById('savedDate').textContent = 'Salvo em ' + dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+      document.getElementById('savedBanner').classList.add('visible');
+
+      await processarBuffer(salvo.data, salvo.nome, false);
+    }
+  } catch(e) {
+    console.warn('Não foi possível carregar planilha salva:', e);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// LEITURA DAS ABAS — acesso direto por célula (robusto a células vazias)
+// ══════════════════════════════════════════════════════════════════════
+
+// Lançamentos AMEX / VISA
+// Cabeçalho linha 5 (r=4). Dados a partir de linha 6 (r=5).
+// Col: B=1,C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10
+function lerLancamentos(sheet, cartao) {
+  const maxRow = ultimaLinha(sheet);
+  const linhas = [];
+  for (let r = 5; r <= maxRow; r++) {
+    const mes = celStr(sheet, r, 1); // coluna B
+    if (!mes) continue;
+    if (!MESES_ORDEM.includes(mes)) continue;
+
+    const descricao = celStr(sheet, r, 3); // D
+    if (descricao.toUpperCase() === 'TOTAL') continue;
+
+    linhas.push({
+      cartao,
+      mes,
+      data:         cel(sheet, r, 2),        // C
+      descricao,
+      categoria:    celStr(sheet, r, 4),     // E
+      tipo:         celStr(sheet, r, 5),     // F
+      parcela:      celStr(sheet, r, 6),     // G
+      valorParcela: celNum(sheet, r, 7),     // H
+      valorTotal:   celNum(sheet, r, 8),     // I
+      totalPago:    celNum(sheet, r, 9),     // J
+      faltaPagar:   celNum(sheet, r, 10),    // K
+    });
+  }
+  return linhas;
+}
+
+// Parcelas
+// Cabeçalho linha 7 (r=6). Dados a partir de linha 8 (r=7).
+// Col: B=1,C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10
+function lerParcelas(sheet) {
+  const maxRow = ultimaLinha(sheet);
+  const linhas = [];
+  for (let r = 7; r <= maxRow; r++) {
+    const cartao = celStr(sheet, r, 1); // B
+    if (cartao !== 'AMEX' && cartao !== 'VISA') continue;
+    const faltam = celNum(sheet, r, 7); // H
+    if (faltam <= 0) continue;
+    linhas.push({
+      cartao,
+      descricao:    celStr(sheet, r, 2),  // C
+      categoria:    celStr(sheet, r, 3),  // D
+      valorParcela: celNum(sheet, r, 4),  // E
+      atual:        celNum(sheet, r, 5),  // F
+      total:        celNum(sheet, r, 6),  // G
+      faltam,
+      pago:         celNum(sheet, r, 8),  // I
+      faltaPagar:   celNum(sheet, r, 9),  // J
+      progresso:    celNum(sheet, r, 10), // K
+    });
+  }
+  return linhas;
+}
+
+// Histórico
+// Cabeçalho linha 5 (r=4). Dados linhas 6–17 (r=5..16).
+// Col: B=1,C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9
+function lerHistorico(sheet) {
+  const linhas = [];
+  for (let r = 5; r <= 16; r++) {
+    const mes = celStr(sheet, r, 1);
+    if (!mes || mes.toUpperCase().includes('TOTAL')) continue;
+    linhas.push({
+      mes,
+      renda:         celNum(sheet, r, 2),
+      amex:          celNum(sheet, r, 3),
+      visa:          celNum(sheet, r, 4),
+      cartoes:       celNum(sheet, r, 5),
+      despesasFixas: celNum(sheet, r, 6),
+      totalSaidas:   celNum(sheet, r, 7),
+      sobra:         celNum(sheet, r, 8),
+      percUsado:     celNum(sheet, r, 9),
+    });
+  }
+  return linhas;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RENDERIZAÇÃO
+// ══════════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  renderCards();
+  renderEvolucao();
+  preencherFiltros();
+  renderCategoria();
+  renderParcelas();
+  renderLancamentos();
+  document.getElementById('dashboard').classList.add('visible');
+}
+
+// 1. CARDS
+function renderCards() {
+  const mesAtual = estado.meses[estado.meses.length - 1] || '—';
+  document.getElementById('mesAtual').textContent = mesAtual;
+
+  const somaAmex = estado.lancamentosAMEX.filter(l => l.mes === mesAtual).reduce((s,l) => s + l.valorParcela, 0);
+  const somaVisa = estado.lancamentosVISA.filter(l => l.mes === mesAtual).reduce((s,l) => s + l.valorParcela, 0);
+  const totalCartoes   = somaAmex + somaVisa;
+  const parcelasAbertas = estado.parcelas.length;
+  const totalDevido     = estado.parcelas.reduce((s,p) => s + p.faltaPagar, 0);
+  const histMes = estado.historico.find(h => h.mes === mesAtual);
+  const renda   = histMes?.renda  ?? null;
+  const sobra   = histMes?.sobra  ?? null;
+
+  document.getElementById('cardsGrid').innerHTML = `
+    <div class="card amex">
+      <div class="card-label">💳 Total AMEX</div>
+      <div class="card-value">${brl(somaAmex)}</div>
+      <div class="card-sub">American Express Platinum</div>
+    </div>
+    <div class="card visa">
+      <div class="card-label">💳 Total VISA</div>
+      <div class="card-value">${brl(somaVisa)}</div>
+      <div class="card-sub">Visa Signature</div>
+    </div>
+    <div class="card total">
+      <div class="card-label">💰 Total Cartões</div>
+      <div class="card-value">${brl(totalCartoes)}</div>
+      <div class="card-sub">AMEX + VISA</div>
+    </div>
+    ${renda !== null ? `
+    <div class="card">
+      <div class="card-label">📈 Renda</div>
+      <div class="card-value" style="color:var(--green)">${brl(renda)}</div>
+      <div class="card-sub">${mesAtual}</div>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-label">📦 Parcelas abertas</div>
+      <div class="card-value">${parcelasAbertas}</div>
+      <div class="card-sub">itens parcelados</div>
+    </div>
+    <div class="card alert">
+      <div class="card-label">💸 Total devido</div>
+      <div class="card-value">${brl(totalDevido)}</div>
+      <div class="card-sub">parcelas futuras</div>
+    </div>
+    ${sobra !== null ? `
+    <div class="card">
+      <div class="card-label">${sobra >= 0 ? '✅' : '⚠️'} Sobra</div>
+      <div class="card-value" style="color:${sobra >= 0 ? 'var(--green)' : 'var(--red)'}">${brl(sobra)}</div>
+      <div class="card-sub">${mesAtual}</div>
+    </div>` : ''}
+  `;
+}
+
+// 2. EVOLUÇÃO MENSAL
+function renderEvolucao() {
+  const hist = [...estado.historico].filter(h => MESES_ORDEM.includes(h.mes));
+  hist.sort((a,b) => MESES_ORDEM.indexOf(a.mes) - MESES_ORDEM.indexOf(b.mes));
+
+  const labels    = hist.map(h => h.mes.substring(0,3));
+  const dataAmex  = hist.map(h => h.amex  || 0);
+  const dataVisa  = hist.map(h => h.visa  || 0);
+  const dataFixas = hist.map(h => h.despesasFixas || 0);
+  const dataRenda = hist.map(h => h.renda || 0);
+
+  const ctx = document.getElementById('chartEvolucao').getContext('2d');
+  if (chartEvolucao) chartEvolucao.destroy();
+
+  chartEvolucao = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'bar',  label:'AMEX',        data: dataAmex,  backgroundColor:'rgba(201,168,76,.75)', borderColor:'rgba(201,168,76,1)', borderWidth:1, borderRadius:4 },
+        { type:'bar',  label:'VISA',        data: dataVisa,  backgroundColor:'rgba(74,158,255,.75)', borderColor:'rgba(74,158,255,1)',  borderWidth:1, borderRadius:4 },
+        { type:'bar',  label:'Desp. Fixas', data: dataFixas, backgroundColor:'rgba(136,136,153,.45)',borderColor:'rgba(136,136,153,.7)',borderWidth:1, borderRadius:4 },
+        { type:'line', label:'Renda',       data: dataRenda, borderColor:'#4caf7d', backgroundColor:'rgba(76,175,125,.08)', borderWidth:2.5, pointBackgroundColor:'#4caf7d', pointRadius:4, tension:.35, fill:true },
+      ],
+    },
+    options: {
+      responsive:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#888899', font:{ family:'DM Sans', size:11 }, boxWidth:12 } },
+        tooltip:{
+          backgroundColor:'#22222d', borderColor:'#2a2a35', borderWidth:1,
+          titleColor:'#f0f0f5', bodyColor:'#888899',
+          callbacks:{ label: ctx => ' ' + ctx.dataset.label + ': ' + Number(ctx.parsed.y).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
+        },
+      },
+      scales:{
+        x:{ ticks:{ color:'#55556a', font:{family:'DM Sans',size:11} }, grid:{ color:'rgba(255,255,255,.04)' } },
+        y:{ ticks:{ color:'#55556a', font:{family:'DM Mono',size:10}, callback: v => 'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0}) }, grid:{ color:'rgba(255,255,255,.04)' } },
+      },
+    },
+  });
+}
+
+// FILTROS
+function preencherFiltros() {
+  const addMeses = id => {
+    const el = document.getElementById(id);
+    el.innerHTML = `<option value="todos">Todos os meses</option>`;
+    estado.meses.forEach(m => el.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
+  };
+  addMeses('filtroMesCat');
+  addMeses('filtroMesLanc');
+
+  const cats = [...new Set([...estado.lancamentosAMEX, ...estado.lancamentosVISA].map(l => l.categoria))].filter(Boolean).sort();
+  const selCat = document.getElementById('filtroCategLanc');
+  selCat.innerHTML = `<option value="todos">Todas categorias</option>`;
+  cats.forEach(c => selCat.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+}
+
+// 3. GRÁFICO CATEGORIAS
+function renderCategoria() {
+  const mesFiltro    = document.getElementById('filtroMesCat').value;
+  const cartaoFiltro = document.getElementById('filtroCartaoCat').value;
+
+  let lanc = [];
+  if (cartaoFiltro !== 'VISA') lanc.push(...estado.lancamentosAMEX);
+  if (cartaoFiltro !== 'AMEX') lanc.push(...estado.lancamentosVISA);
+  if (mesFiltro !== 'todos')   lanc = lanc.filter(l => l.mes === mesFiltro);
+
+  const mapa = {};
+  lanc.forEach(l => { const c = l.categoria || 'Outros'; mapa[c] = (mapa[c]||0) + l.valorParcela; });
+  const entries = Object.entries(mapa).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const labels  = entries.map(([k])=>k);
+  const valores = entries.map(([,v])=>v);
+  const cores   = labels.map(l => CAT_CORES[l] || '#6b7280');
+  const total   = valores.reduce((s,v)=>s+v,0);
+
+  const ctx = document.getElementById('chartCategoria').getContext('2d');
+  if (chartCategoria) chartCategoria.destroy();
+  if (!entries.length) return;
+
+  chartCategoria = new Chart(ctx, {
+    type:'doughnut',
+    data:{
+      labels,
+      datasets:[{ data:valores, backgroundColor:cores.map(c=>c+'cc'), borderColor:cores, borderWidth:1.5, hoverOffset:8 }],
+    },
+    options:{
+      responsive:true, cutout:'62%',
+      plugins:{
+        legend:{
+          position:'right',
+          labels:{
+            color:'#888899', font:{family:'DM Sans',size:10}, boxWidth:10, padding:8,
+            generateLabels: chart => {
+              const ds = chart.data.datasets[0];
+              return chart.data.labels.map((l,i) => ({
+                text: l + '  ' + brl(ds.data[i]) + ' (' + (ds.data[i]/total*100).toFixed(1) + '%)',
+                fillStyle: ds.backgroundColor[i], strokeStyle: ds.borderColor[i],
+                lineWidth: ds.borderWidth, hidden:false, index:i,
+              }));
+            },
+          },
+        },
+        tooltip:{
+          backgroundColor:'#22222d', borderColor:'#2a2a35', borderWidth:1,
+          titleColor:'#f0f0f5', bodyColor:'#888899',
+          callbacks:{ label: ctx => '  ' + brl(ctx.parsed) + ' (' + (ctx.parsed/total*100).toFixed(1) + '%)' },
+        },
+      },
+    },
+  });
+}
+
+// 4. TABELA PARCELAS
+function renderParcelas() {
+  const parcelas = [...estado.parcelas].sort((a,b)=>b.faltaPagar-a.faltaPagar);
+  const total    = parcelas.reduce((s,p)=>s+p.faltaPagar,0);
+  document.getElementById('parcelasResumo').textContent = parcelas.length + ' itens · Total: ' + brl(total);
+
+  const tbody = document.getElementById('tbodyParcelas');
+  if (!parcelas.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma parcela em aberto</td></tr>`; return; }
+
+  tbody.innerHTML = parcelas.map(p => {
+    const pct = Math.min(Math.max(p.progresso*100,0),100).toFixed(0);
+    const bc  = p.cartao==='AMEX' ? 'badge-amex' : 'badge-visa';
+    return `<tr>
+      <td><span class="badge ${bc}">${p.cartao}</span></td>
+      <td>${p.descricao}</td>
+      <td>${p.categoria}</td>
+      <td class="mono">${p.atual}/${p.total}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="progress-wrap"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <span style="font-size:.7rem;color:var(--text2);font-family:'DM Mono'">${pct}%</span>
+        </div>
+      </td>
+      <td class="mono red">${brl(p.faltaPagar)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 5. TABELA LANÇAMENTOS
+function renderLancamentos() {
+  const mesFiltro    = document.getElementById('filtroMesLanc').value;
+  const cartaoFiltro = document.getElementById('filtroCartaoLanc').value;
+  const categFiltro  = document.getElementById('filtroCategLanc').value;
+
+  let todos = [];
+  if (cartaoFiltro !== 'VISA') todos.push(...estado.lancamentosAMEX);
+  if (cartaoFiltro !== 'AMEX') todos.push(...estado.lancamentosVISA);
+  if (mesFiltro    !== 'todos') todos = todos.filter(l => l.mes === mesFiltro);
+  if (categFiltro  !== 'todos') todos = todos.filter(l => l.categoria === categFiltro);
+
+  todos.sort((a,b) => MESES_ORDEM.indexOf(b.mes) - MESES_ORDEM.indexOf(a.mes));
+  const exibir = mesFiltro === 'todos' ? todos.slice(0,20) : todos;
+
+  const tbody = document.getElementById('tbodyLanc');
+  if (!exibir.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty">Nenhum lançamento encontrado</td></tr>`; return; }
+
+  tbody.innerHTML = exibir.map(l => {
+    const bc = l.cartao==='AMEX' ? 'badge-amex' : 'badge-visa';
+    const bt = l.tipo==='Parcelado' ? 'badge-parcel' : 'badge-avista';
+
+    let dataFmt = '';
+    if (l.data) {
+      try {
+        if (l.data instanceof Date) dataFmt = l.data.toLocaleDateString('pt-BR');
+        else if (typeof l.data === 'number') {
+          const d = XLSX.SSF.parse_date_code(l.data);
+          dataFmt = String(d.d).padStart(2,'0')+'/'+String(d.m).padStart(2,'0')+'/'+d.y;
+        } else dataFmt = String(l.data);
+      } catch(_) { dataFmt = String(l.data); }
+    }
+
+    return `<tr>
+      <td>${l.mes}</td>
+      <td class="mono" style="color:var(--text2)">${dataFmt}</td>
+      <td>${l.descricao}</td>
+      <td>${l.categoria}</td>
+      <td><span class="badge ${bc}">${l.cartao}</span></td>
+      <td><span class="badge ${bt}">${l.tipo || '—'}</span>${l.parcela ? ` <span style="font-size:.68rem;color:var(--text3)">${l.parcela}</span>` : ''}</td>
+      <td class="mono">${brl(l.valorParcela)}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
