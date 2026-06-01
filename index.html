@@ -253,7 +253,12 @@
 
     <!-- 1. Cards resumo -->
     <section id="secCards">
-      <div class="section-title">Resumo — <span id="mesAtual">—</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+        <div class="section-title" style="margin-bottom:0">Resumo — <span id="mesAtual">—</span></div>
+        <select class="filter" id="filtroMesResumo" onchange="renderCards()">
+          <option value="ultimo">Mês atual</option>
+        </select>
+      </div>
       <div class="cards-grid" id="cardsGrid"></div>
     </section>
 
@@ -643,17 +648,28 @@ function renderDashboard() {
 
 // 1. CARDS
 function renderCards() {
-  const mesAtual = estado.meses[estado.meses.length - 1] || '—';
-  document.getElementById('mesAtual').textContent = mesAtual;
+  const sel = document.getElementById('filtroMesResumo');
+  const filtro = sel ? sel.value : 'ultimo';
+  const todos = filtro === 'todos';
 
-  const somaAmex = estado.lancamentosAMEX.filter(l => l.mes === mesAtual).reduce((s,l) => s + l.valorParcela, 0);
-  const somaVisa = estado.lancamentosVISA.filter(l => l.mes === mesAtual).reduce((s,l) => s + l.valorParcela, 0);
-  const totalCartoes   = somaAmex + somaVisa;
+  // Determina o rótulo do cabeçalho
+  const labelMes = todos ? 'Todos os meses' : (filtro === 'ultimo' ? estado.meses[estado.meses.length - 1] : filtro);
+  document.getElementById('mesAtual').textContent = labelMes || '—';
+
+  // Filtra lançamentos
+  const lancAMEX = todos ? estado.lancamentosAMEX : estado.lancamentosAMEX.filter(l => l.mes === labelMes);
+  const lancVISA = todos ? estado.lancamentosVISA : estado.lancamentosVISA.filter(l => l.mes === labelMes);
+
+  const somaAmex      = lancAMEX.reduce((s,l) => s + l.valorParcela, 0);
+  const somaVisa      = lancVISA.reduce((s,l) => s + l.valorParcela, 0);
+  const totalCartoes  = somaAmex + somaVisa;
   const parcelasAbertas = estado.parcelas.length;
-  const totalDevido     = estado.parcelas.reduce((s,p) => s + p.faltaPagar, 0);
-  const histMes = estado.historico.find(h => h.mes === mesAtual);
-  const renda   = histMes?.renda  ?? null;
-  const sobra   = histMes?.sobra  ?? null;
+  const totalDevido   = estado.parcelas.reduce((s,p) => s + p.faltaPagar, 0);
+
+  // Renda e sobra — soma todos ou filtra pelo mês
+  const histFiltrado = todos ? estado.historico : estado.historico.filter(h => h.mes === labelMes);
+  const renda = histFiltrado.length ? histFiltrado.reduce((s,h) => s + h.renda, 0) : null;
+  const sobra = histFiltrado.length ? histFiltrado.reduce((s,h) => s + h.sobra, 0) : null;
 
   document.getElementById('cardsGrid').innerHTML = `
     <div class="card amex">
@@ -675,7 +691,7 @@ function renderCards() {
     <div class="card">
       <div class="card-label">📈 Renda</div>
       <div class="card-value" style="color:var(--green)">${brl(renda)}</div>
-      <div class="card-sub">${mesAtual}</div>
+      <div class="card-sub">${labelMes}</div>
     </div>` : ''}
     <div class="card">
       <div class="card-label">📦 Parcelas abertas</div>
@@ -691,7 +707,7 @@ function renderCards() {
     <div class="card">
       <div class="card-label">${sobra >= 0 ? '✅' : '⚠️'} Sobra</div>
       <div class="card-value" style="color:${sobra >= 0 ? 'var(--green)' : 'var(--red)'}">${brl(sobra)}</div>
-      <div class="card-sub">${mesAtual}</div>
+      <div class="card-sub">${labelMes}</div>
     </div>` : ''}
   `;
 }
@@ -748,6 +764,12 @@ function preencherFiltros() {
   };
   addMeses('filtroMesCat');
   addMeses('filtroMesLanc');
+
+  // Filtro do resumo: "Mês atual", todos os meses disponíveis, e "Todos"
+  const selResumo = document.getElementById('filtroMesResumo');
+  selResumo.innerHTML = `<option value="ultimo">Mês atual</option>`;
+  estado.meses.forEach(m => selResumo.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
+  selResumo.insertAdjacentHTML('beforeend', `<option value="todos">Todos os meses</option>`);
 
   const cats = [...new Set([...estado.lancamentosAMEX, ...estado.lancamentosVISA].map(l => l.categoria))].filter(Boolean).sort();
   const selCat = document.getElementById('filtroCategLanc');
