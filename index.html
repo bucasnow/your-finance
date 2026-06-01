@@ -236,6 +236,7 @@
       <div class="welcome-step"><span>🔒</span><span>Seus dados ficam salvos no navegador — sem servidores</span></div>
     </div>
     <button class="btn-welcome" onclick="document.getElementById('fileInput').click()">📂 Selecionar planilha</button>
+    <div id="erroMsg" style="display:none;background:#e05c5c22;border:1px solid #e05c5c;border-radius:10px;padding:1rem 1.5rem;color:#e05c5c;font-size:.85rem;max-width:500px;word-break:break-word;text-align:left"></div>
   </div>
 
   <!-- Loading -->
@@ -521,8 +522,10 @@ async function processarBuffer(buf, nome, salvar = false) {
 
   } catch(err) {
     console.error(err);
-    mostrarToast('Erro: ' + err.message);
+    // Mostra erro visível e persistente na tela (não some como o toast)
     document.getElementById('welcome').style.display = 'flex';
+    document.getElementById('erroMsg').textContent = '⚠️ ' + err.message;
+    document.getElementById('erroMsg').style.display = 'block';
   }
 
   document.getElementById('loading').classList.remove('visible');
