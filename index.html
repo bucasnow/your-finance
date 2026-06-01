@@ -253,9 +253,9 @@
 
     <!-- 1. Cards resumo -->
     <section id="secCards">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem">
         <div class="section-title" style="margin-bottom:0">Resumo — <span id="mesAtual">—</span></div>
-        <select class="filter" id="filtroMesResumo" onchange="renderCards()">
+        <select class="filter" id="filtroMesResumo" onchange="renderCards()" style="font-size:.85rem;padding:.45rem .9rem;border-color:var(--amex);color:var(--amex);font-weight:600;background:var(--surface2)">
           <option value="ultimo">Mês atual</option>
         </select>
       </div>
