@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f13" />
+  <meta name="description" content="Controle financeiro pessoal via Open Finance Brasil" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="fin.app" />
+
+  <title>fin.app</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ======================================================
+       Tela de Login (exibida quando não autenticado)
+  ======================================================= -->
+  <div id="login-wrapper" class="login-wrapper" style="display:none"></div>
+
+  <!-- ======================================================
+       Layout principal
+  ======================================================= -->
+  <div id="app-layout" class="app-layout">
+
+    <!-- Sidebar desktop -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">fin<span>.</span>app</div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-tela="home">
+          <i class="ti ti-home"></i> Início
+        </div>
+        <div class="nav-item" data-tela="transacoes">
+          <i class="ti ti-list"></i> Transações
+        </div>
+        <div class="nav-item" data-tela="contas">
+          <i class="ti ti-building-bank"></i> Contas
+        </div>
+        <div class="nav-item" data-tela="config">
+          <i class="ti ti-settings"></i> Config.
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Conteúdo principal -->
+    <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+
+      <!-- Header mobile -->
+      <header class="mobile-header">
+        <div class="mobile-header-logo">fin<span style="color:var(--accent)">.</span>app</div>
+        <div class="sync-badge">
+          <i class="ti ti-circle-check" style="font-size:.8rem"></i>
+          <span class="sync-badge-texto">sincronizado</span>
+        </div>
+      </header>
+
+      <!-- ================================================
+           Tela: Home
+      ================================================= -->
+      <main class="main-content tela ativa" id="tela-home">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <h1 style="font-size:1.1rem;font-weight:600">Visão Geral</h1>
+          <span style="font-size:.78rem;color:var(--muted)">
+            <i class="ti ti-calendar"></i>
+            <span id="data-atual"></span>
+          </span>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid" id="kpi-grid">
+          <!-- preenchido via JS -->
+        </div>
+
+        <!-- Gráficos -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-titulo">Receitas vs Gastos — últimos 6 meses</div>
+            <div class="chart-container">
+              <canvas id="grafico-barras"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-titulo">Gastos por Categoria — mês atual</div>
+            <div class="chart-container">
+              <canvas id="grafico-rosca"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Últimas transações -->
+        <div class="section-titulo">Últimas Transações</div>
+        <div class="transacoes-card" id="ultimas-transacoes">
+          <!-- preenchido via JS -->
+        </div>
+
+      </main>
+
+      <!-- ================================================
+           Tela: Transações
+      ================================================= -->
+      <main class="main-content tela" id="tela-transacoes">
+
+        <div style="margin-bottom:20px">
+          <h1 style="font-size:1.1rem;font-weight:600;margin-bottom:14px">Transações</h1>
+
+          <div class="filtros-bar">
+            <input class="filtro-input" type="date" id="filtro-inicio" title="Data início" />
+            <input class="filtro-input" type="date" id="filtro-fim"    title="Data fim" />
+            <select class="filtro-select" id="filtro-tipo">
+              <option value="">Todos os tipos</option>
+              <option value="CREDIT">Receitas</option>
+              <option value="DEBIT">Gastos</option>
+            </select>
+            <select class="filtro-select" id="filtro-categoria">
+              <option value="">Todas as categorias</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="transacoes-card" id="lista-transacoes">
+          <!-- preenchido via JS -->
+        </div>
+
+      </main>
+
+      <!-- ================================================
+           Tela: Contas
+      ================================================= -->
+      <main class="main-content tela" id="tela-contas">
+        <h1 style="font-size:1.1rem;font-weight:600;margin-bottom:20px">Contas</h1>
+        <div class="contas-grid" id="contas-grid">
+          <!-- preenchido via JS -->
+        </div>
+      </main>
+
+      <!-- ================================================
+           Tela: Configurações
+      ================================================= -->
+      <main class="main-content tela" id="tela-config">
+        <h1 style="font-size:1.1rem;font-weight:600;margin-bottom:20px">Configurações</h1>
+
+        <div class="config-section">
+          <div class="config-section-titulo">Conectar Banco</div>
+          <div class="config-section-desc">
+            Conecte sua conta bancária via Open Finance Brasil usando a Pluggy.
+            Seus dados ficam protegidos por consentimento e podem ser revogados a qualquer momento.
+          </div>
+          <button class="btn-secondary" id="btn-conectar-banco">
+            <i class="ti ti-plug"></i> Conectar banco
+          </button>
+        </div>
+
+        <div class="config-section">
+          <div class="config-section-titulo">Sincronização</div>
+          <div class="config-section-desc">
+            A sincronização automática ocorre diariamente às 04:00 UTC.
+            Clique abaixo para forçar uma sincronização manual.
+          </div>
+          <button class="btn-secondary" id="btn-sync-manual">
+            <i class="ti ti-refresh"></i> Sincronizar agora
+          </button>
+        </div>
+
+        <div class="config-section" id="section-2fa">
+          <div class="config-section-titulo">Verificação em Duas Etapas (2FA)</div>
+          <div class="config-section-desc" id="desc-2fa">
+            Proteja sua conta com o Google Authenticator.
+          </div>
+          <div id="qrcode-container" style="display:none;margin-bottom:16px">
+            <img id="qrcode-img" src="" alt="QR Code" style="border-radius:8px;width:180px;height:180px" />
+            <p style="font-size:.75rem;color:var(--muted);margin-top:8px">
+              Escaneie com o Google Authenticator
+            </p>
+            <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+              <input class="form-input mono" type="text" id="inp-codigo-2fa"
+                placeholder="000000" maxlength="6" inputmode="numeric"
+                style="width:140px;font-size:1.2rem;letter-spacing:6px;text-align:center" />
+              <button class="btn-secondary" id="btn-confirmar-2fa">Confirmar</button>
+            </div>
+            <div class="form-erro" id="erro-confirmar-2fa" style="margin-top:8px"></div>
+          </div>
+          <button class="btn-secondary" id="btn-2fa">
+            <i class="ti ti-shield-lock"></i> Ativar 2FA
+          </button>
+        </div>
+
+        <div class="config-section">
+          <div class="config-section-titulo">Conta</div>
+          <div class="config-section-desc">Sair da sua conta no dispositivo atual.</div>
+          <button class="btn-secondary" id="btn-logout"
+            style="border-color:var(--red);color:var(--red)">
+            <i class="ti ti-logout"></i> Sair
+          </button>
+        </div>
+
+      </main>
+
+    </div><!-- fim flex column -->
+  </div><!-- fim app-layout -->
+
+  <!-- Bottom navigation mobile -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <div class="bottom-nav-item active" data-tela="home">
+        <i class="ti ti-home" style="font-size:1.2rem"></i>
+        Início
+      </div>
+      <div class="bottom-nav-item" data-tela="transacoes">
+        <i class="ti ti-list" style="font-size:1.2rem"></i>
+        Transações
+      </div>
+      <div class="bottom-nav-item" data-tela="contas">
+        <i class="ti ti-building-bank" style="font-size:1.2rem"></i>
+        Contas
+      </div>
+      <div class="bottom-nav-item" data-tela="config">
+        <i class="ti ti-settings" style="font-size:1.2rem"></i>
+        Config.
+      </div>
+    </div>
+  </nav>
+
+  <!-- Botão flutuante + -->
+  <button id="btn-nova-transacao" class="fab" title="Nova transação">
+    <i class="ti ti-plus"></i>
+  </button>
+
+  <!-- Modal: Nova Transação -->
+  <div id="modal-transacao" class="modal-overlay" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-titulo">Nova Transação</span>
+        <button id="modal-fechar" class="modal-fechar"><i class="ti ti-x"></i></button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <div class="tipo-toggle">
+          <button class="tipo-btn ativo" data-tipo="DEBIT">
+            <i class="ti ti-arrow-up-right"></i> Gasto
+          </button>
+          <button class="tipo-btn" data-tipo="CREDIT">
+            <i class="ti ti-arrow-down-left"></i> Receita
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Valor (R$)</label>
+        <input class="form-input mono" type="number" id="modal-valor"
+          placeholder="0,00" step="0.01" min="0.01" inputmode="decimal" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Descrição</label>
+        <input class="form-input" type="text" id="modal-descricao"
+          placeholder="Ex: Mercado, Salário..." />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Data</label>
+        <input class="form-input" type="date" id="modal-data" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Categoria</label>
+        <select class="filtro-select" id="modal-categoria" style="width:100%;padding:10px 12px">
+          <option value="">Sem categoria</option>
+        </select>
+      </div>
+
+      <div class="form-erro" id="modal-erro"></div>
+
+      <button class="btn-primary" id="modal-salvar" style="margin-top:8px">
+        <i class="ti ti-check"></i> Salvar
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Data atual no header -->
+  <script>
+    document.getElementById("data-atual").textContent =
+      new Date().toLocaleDateString("pt-BR", { weekday:"long", day:"numeric", month:"long" });
+  </script>
+
+  <!-- App principal como módulo ES6 -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
