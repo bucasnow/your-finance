@@ -150,36 +150,69 @@ function renderReset() {
   el.innerHTML = `
     <div class="auth-card">
       <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
-      <h1 class="auth-title">Redefinir senha</h1>
+      <h1 class="auth-title">Esqueci minha senha</h1>
+      <p class="muted small" style="text-align:center">Digite seu e-mail e enviaremos um link para criar uma nova senha.</p>
       <form id="reset-form" novalidate style="display:flex;flex-direction:column;gap:16px">
         <label class="field"><span class="field-label">Email</span>
           <input class="input" id="rst-email" type="email" placeholder="seu@email.com" autocomplete="email" required></label>
-        <label class="field"><span class="field-label">Nova senha</span>
-          <input class="input" id="rst-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required minlength="8"></label>
         <div class="form-error" id="auth-err" role="alert"></div>
-        <button class="btn btn-primary btn-block" type="submit">Salvar nova senha</button>
-        <button class="btn btn-ghost btn-block" type="button" id="back-login3">Voltar</button>
+        <button class="btn btn-primary btn-block" type="submit">Enviar link</button>
+        <button class="btn btn-ghost btn-block" type="button" id="back-login3">Voltar para o login</button>
       </form>
     </div>`;
   el.querySelector('#reset-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = document.getElementById('auth-err');
     const email = document.getElementById('rst-email').value.trim();
-    const nova_senha = document.getElementById('rst-senha').value;
-    if (!email || nova_senha.length < 8) { err.textContent = 'Preencha todos os campos (senha mínimo 8 caracteres).'; return; }
+    if (!email) { err.textContent = 'Informe o e-mail.'; return; }
     const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true; err.textContent = '';
     try {
-      await authPost('/auth/reset-senha', { email, nova_senha });
+      await authPost('/auth/solicitar-reset', { email });
       err.style.color = 'var(--pos)';
-      err.textContent = 'Senha alterada! Faça login.';
-      setTimeout(renderLogin, 1500);
+      err.textContent = 'Se o e-mail estiver cadastrado, você receberá um link em breve.';
     } catch (ex) {
-      err.textContent = ex.message || 'Erro ao redefinir.';
+      err.textContent = ex.message || 'Erro ao enviar.';
       btn.disabled = false;
     }
   });
   el.querySelector('#back-login3').addEventListener('click', renderLogin);
+}
+
+function renderNovasenha(token) {
+  const el = document.getElementById('auth-box');
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
+      <h1 class="auth-title">Nova senha</h1>
+      <form id="novasenha-form" novalidate style="display:flex;flex-direction:column;gap:16px">
+        <label class="field"><span class="field-label">Nova senha</span>
+          <input class="input" id="ns-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required minlength="8"></label>
+        <label class="field"><span class="field-label">Confirmar senha</span>
+          <input class="input" id="ns-confirm" type="password" placeholder="Repita a senha" autocomplete="new-password" required></label>
+        <div class="form-error" id="auth-err" role="alert"></div>
+        <button class="btn btn-primary btn-block" type="submit">Salvar nova senha</button>
+      </form>
+    </div>`;
+  el.querySelector('#novasenha-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('auth-err');
+    const nova_senha = document.getElementById('ns-senha').value;
+    const confirm = document.getElementById('ns-confirm').value;
+    if (nova_senha.length < 8) { err.textContent = 'Senha deve ter pelo menos 8 caracteres.'; return; }
+    if (nova_senha !== confirm) { err.textContent = 'As senhas não coincidem.'; return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; err.textContent = '';
+    try {
+      await authPost('/auth/confirmar-reset', { token, nova_senha });
+      err.style.color = 'var(--pos)';
+      err.textContent = 'Senha alterada! Redirecionando...';
+      setTimeout(() => { location.hash = ''; renderLogin(); }, 1500);
+    } catch (ex) {
+      err.textContent = ex.message || 'Erro ao salvar.';
+      btn.disabled = false;
+    }
+  });
 }
 
 function renderRegister() {
@@ -320,6 +353,18 @@ function init() {
 // ─── Boot ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Detecta link de reset de senha (?token=xxx ou #/reset?token=xxx)
+  const urlParams = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
+  const resetToken = urlParams.get('token') || hashParams.get('token');
+
+  if (resetToken) {
+    document.getElementById('auth-overlay').hidden = false;
+    document.getElementById('app-shell').hidden = true;
+    renderNovasenha(resetToken);
+    return;
+  }
+
   if (window.FIN_CONFIG.useMock || getToken()) {
     hideAuth();
     init();
