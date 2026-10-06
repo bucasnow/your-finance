@@ -12,11 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-try:
-    import resend as resend_sdk
-    RESEND_AVAILABLE = True
-except ImportError:
-    RESEND_AVAILABLE = False
+import httpx
 
 import pyotp
 import qrcode
@@ -237,26 +233,30 @@ async def solicitar_reset(dados: dict):
     }).eq("id", usuario["id"]).execute()
     link = f"{FRONTEND_URL}/#/reset?token={token}"
     nome = usuario.get("nome") or "usuário"
-    if RESEND_API_KEY and RESEND_AVAILABLE:
-        resend_sdk.api_key = RESEND_API_KEY
-        resend_sdk.Emails.send({
-            "from": FROM_EMAIL,
-            "to": [email],
-            "subject": "Redefinir senha — fin.app",
-            "html": f"""
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
-              <h2 style="color:#34D399">fin.app</h2>
-              <p>Olá, <strong>{nome}</strong>!</p>
-              <p>Recebemos uma solicitação para redefinir sua senha.</p>
-              <p style="margin:24px 0">
-                <a href="{link}" style="background:#34D399;color:#0A101C;padding:12px 24px;border-radius:8px;font-weight:700;text-decoration:none">
-                  Redefinir minha senha
-                </a>
-              </p>
-              <p style="color:#888;font-size:13px">O link expira em 1 hora. Se não foi você, ignore este e-mail.</p>
-            </div>
-            """
-        })
+    if RESEND_API_KEY:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "from": FROM_EMAIL,
+                    "to": [email],
+                    "subject": "Redefinir senha — fin.app",
+                    "html": f"""
+                    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+                      <h2 style="color:#34D399">fin.app</h2>
+                      <p>Olá, <strong>{nome}</strong>!</p>
+                      <p>Recebemos uma solicitação para redefinir sua senha.</p>
+                      <p style="margin:24px 0">
+                        <a href="{link}" style="background:#34D399;color:#0A101C;padding:12px 24px;border-radius:8px;font-weight:700;text-decoration:none">
+                          Redefinir minha senha
+                        </a>
+                      </p>
+                      <p style="color:#888;font-size:13px">O link expira em 1 hora. Se não foi você, ignore este e-mail.</p>
+                    </div>
+                    """
+                }
+            )
     logger.info(f"Reset de senha solicitado: {email}")
     return {"mensagem": "Se o e-mail estiver cadastrado, você receberá um link em breve."}
 
