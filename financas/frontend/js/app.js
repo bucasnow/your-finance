@@ -26,12 +26,18 @@ function getToken() { return localStorage.getItem('finapp_token'); }
 function saveToken(t) { localStorage.setItem('finapp_token', t); }
 function clearToken() { localStorage.removeItem('finapp_token'); localStorage.removeItem('fin.username'); }
 
-async function authPost(path, body) {
-  const res = await fetch(API_BASE() + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+async function authPost(path, body, asForm = false) {
+  const headers = {};
+  let bodyData;
+  if (asForm) {
+    const fd = new URLSearchParams();
+    for (const [k, v] of Object.entries(body)) fd.append(k, v);
+    bodyData = fd;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    bodyData = JSON.stringify(body);
+  }
+  const res = await fetch(API_BASE() + path, { method: 'POST', headers, body: bodyData });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.detail || json.message || res.statusText);
   return json;
@@ -62,10 +68,12 @@ function renderLogin() {
         <div class="form-error" id="auth-err" role="alert"></div>
         <button class="btn btn-primary btn-block" type="submit">Entrar</button>
         <button class="btn btn-ghost btn-block" type="button" id="go-register">Criar conta</button>
+        <button class="btn btn-ghost btn-block" type="button" id="go-reset" style="font-size:13px;opacity:0.7">Esqueci minha senha</button>
       </form>
     </div>`;
   el.querySelector('#login-form').addEventListener('submit', handleLogin);
   el.querySelector('#go-register').addEventListener('click', renderRegister);
+  el.querySelector('#go-reset').addEventListener('click', renderReset);
 }
 
 async function handleLogin(e) {
@@ -77,7 +85,7 @@ async function handleLogin(e) {
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; err.textContent = '';
   try {
-    const data = await authPost('/login', { email, senha });
+    const data = await authPost('/auth/login', { username: email, password: senha }, true);
     if (data.requires_2fa) {
       renderOtp(email, senha);
     } else {
@@ -117,7 +125,14 @@ function renderOtp(email, senha) {
     const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true; err.textContent = '';
     try {
-      const data = await authPost('/login', { email, senha, totp: otp });
+      const data = await authPost('/auth/login', { username: email, password: senha }, true);
+      // Se ainda requer 2FA, verificar com o código
+      if (data.requires_2fa) {
+        const data2 = await authPost('/auth/verificar-2fa', { codigo: otp, temp_token: data.temp_token });
+        saveToken(data2.access_token);
+        localStorage.setItem('fin.username', email.split('@')[0]);
+        hideAuth(); init(); return;
+      }
       saveToken(data.access_token);
       localStorage.setItem('fin.username', data.nome || email.split('@')[0]);
       hideAuth();
@@ -128,6 +143,43 @@ function renderOtp(email, senha) {
     }
   });
   el.querySelector('#back-login').addEventListener('click', renderLogin);
+}
+
+function renderReset() {
+  const el = document.getElementById('auth-box');
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
+      <h1 class="auth-title">Redefinir senha</h1>
+      <form id="reset-form" novalidate style="display:flex;flex-direction:column;gap:16px">
+        <label class="field"><span class="field-label">Email</span>
+          <input class="input" id="rst-email" type="email" placeholder="seu@email.com" autocomplete="email" required></label>
+        <label class="field"><span class="field-label">Nova senha</span>
+          <input class="input" id="rst-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required minlength="8"></label>
+        <div class="form-error" id="auth-err" role="alert"></div>
+        <button class="btn btn-primary btn-block" type="submit">Salvar nova senha</button>
+        <button class="btn btn-ghost btn-block" type="button" id="back-login3">Voltar</button>
+      </form>
+    </div>`;
+  el.querySelector('#reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('auth-err');
+    const email = document.getElementById('rst-email').value.trim();
+    const nova_senha = document.getElementById('rst-senha').value;
+    if (!email || nova_senha.length < 8) { err.textContent = 'Preencha todos os campos (senha mínimo 8 caracteres).'; return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; err.textContent = '';
+    try {
+      await authPost('/auth/reset-senha', { email, nova_senha });
+      err.style.color = 'var(--pos)';
+      err.textContent = 'Senha alterada! Faça login.';
+      setTimeout(renderLogin, 1500);
+    } catch (ex) {
+      err.textContent = ex.message || 'Erro ao redefinir.';
+      btn.disabled = false;
+    }
+  });
+  el.querySelector('#back-login3').addEventListener('click', renderLogin);
 }
 
 function renderRegister() {
@@ -162,8 +214,8 @@ async function handleRegister(e) {
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; err.textContent = '';
   try {
-    await authPost('/usuarios', { nome, email, senha });
-    const data = await authPost('/login', { email, senha });
+    await authPost('/auth/registro', { nome, email, senha });
+    const data = await authPost('/auth/login', { username: email, password: senha }, true);
     saveToken(data.access_token);
     localStorage.setItem('fin.username', nome);
     hideAuth();
