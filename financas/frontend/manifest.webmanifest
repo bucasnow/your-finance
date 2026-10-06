@@ -1,0 +1,19 @@
+{
+  "name": "fin.app — Controle financeiro",
+  "short_name": "fin.app",
+  "description": "Controle financeiro pessoal: gastos, cartões, parcelas e investimentos.",
+  "lang": "pt-BR",
+  "start_url": "./#/inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A101C",
+  "theme_color": "#0A101C",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Novo gasto", "url": "./#/novo" },
+    { "name": "Lançamentos", "url": "./#/lancamentos" }
+  ]
+}

@@ -1,653 +1,277 @@
-/**
- * app.js — Lógica principal do fin.app
- * Navegação entre telas, renderização de dados e interações do usuário.
- */
+import { icon } from './icons.js';
+import { destroyCharts } from './charts.js';
+import { esc } from './utils.js';
 
-import { auth, transacoes, contas, categorias, pluggy } from "./api.js";
-import { renderizarGraficoBarras, renderizarGraficoRosca } from "./charts.js";
-
-// ---------------------------------------------------------------------------
-// Estado global
-// ---------------------------------------------------------------------------
-const estado = {
-  telaAtual: "home",
-  categorias: [],
-  filtros: { data_inicio: null, data_fim: null, categoria_id: null, tipo: null, conta_id: null },
+const ROUTES = {
+  '#/inicio': () => import('./views/dashboard.js'),
+  '#/lancamentos': () => import('./views/lancamentos.js'),
+  '#/novo': () => import('./views/novo.js'),
+  '#/cartoes': () => import('./views/cartoes.js'),
+  '#/investimentos': () => import('./views/investimentos.js'),
 };
 
-// ---------------------------------------------------------------------------
-// Inicialização
-// ---------------------------------------------------------------------------
-document.addEventListener("DOMContentLoaded", async () => {
-  if (!auth.estaLogado()) {
-    mostrarLogin();
-    return;
-  }
+const NAV = [
+  { hash: '#/inicio', label: 'Início', ic: 'home' },
+  { hash: '#/lancamentos', label: 'Lançamentos', ic: 'list' },
+  { hash: '#/novo', label: 'Novo', ic: 'plus', fab: true },
+  { hash: '#/cartoes', label: 'Cartões', ic: 'card' },
+  { hash: '#/investimentos', label: 'Investimentos', ic: 'chart' },
+];
 
-  registrarServiceWorker();
-  configurarNavegacao();
-  configurarModalTransacao();
-  await carregarHome();
-});
+const API_BASE = () => window.FIN_CONFIG.apiBase;
 
-function registrarServiceWorker() {
-  // Desativado durante desenvolvimento para evitar cache
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistrations().then((regs) => {
-      regs.forEach((r) => r.unregister());
-    });
-  }
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+function getToken() { return localStorage.getItem('finapp_token'); }
+function saveToken(t) { localStorage.setItem('finapp_token', t); }
+function clearToken() { localStorage.removeItem('finapp_token'); localStorage.removeItem('fin.username'); }
+
+async function authPost(path, body) {
+  const res = await fetch(API_BASE() + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.detail || json.message || res.statusText);
+  return json;
 }
 
-// ---------------------------------------------------------------------------
-// Tela de Login / Registro
-// ---------------------------------------------------------------------------
-function mostrarLogin() {
-  document.getElementById("app-layout").style.display = "none";
-  const wrapper = document.getElementById("login-wrapper");
-  wrapper.style.display = "flex";
-  renderizarFormLogin(wrapper);
+function showAuth() {
+  document.getElementById('auth-overlay').hidden = false;
+  document.getElementById('app-shell').hidden = true;
+  renderLogin();
 }
 
-function renderizarFormLogin(wrapper, modo = "login") {
-  const ehRegistro = modo === "registro";
-  wrapper.innerHTML = `
-    <div class="login-card">
-      <div class="login-titulo">fin<span>.</span>app</div>
-      <div class="login-sub">${ehRegistro ? "Crie sua conta" : "Controle financeiro pessoal"}</div>
-      <form id="form-auth">
-        ${ehRegistro ? `
-          <div class="form-group">
-            <label class="form-label">Nome</label>
-            <input class="form-input" type="text" id="inp-nome" placeholder="Seu nome" required />
-          </div>` : ""}
-        <div class="form-group">
-          <label class="form-label">E-mail</label>
-          <input class="form-input" type="email" id="inp-email" placeholder="seu@email.com" required />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input class="form-input" type="password" id="inp-senha" placeholder="••••••••" required />
-        </div>
-        <button class="btn-primary" type="submit" id="btn-auth">
-          ${ehRegistro ? "Criar conta" : "Entrar"}
-        </button>
-        <div class="form-erro" id="auth-erro"></div>
+function hideAuth() {
+  document.getElementById('auth-overlay').hidden = true;
+  document.getElementById('app-shell').hidden = false;
+}
+
+function renderLogin() {
+  const el = document.getElementById('auth-box');
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
+      <h1 class="auth-title">Entrar</h1>
+      <form id="login-form" novalidate style="display:flex;flex-direction:column;gap:16px">
+        <label class="field"><span class="field-label">Email</span>
+          <input class="input" id="auth-email" type="email" placeholder="seu@email.com" autocomplete="email" required></label>
+        <label class="field"><span class="field-label">Senha</span>
+          <input class="input" id="auth-senha" type="password" placeholder="••••••••" autocomplete="current-password" required></label>
+        <div class="form-error" id="auth-err" role="alert"></div>
+        <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+        <button class="btn btn-ghost btn-block" type="button" id="go-register">Criar conta</button>
       </form>
-      <div class="form-toggle">
-        ${ehRegistro
-          ? `Já tem conta? <a id="toggle-modo">Entrar</a>`
-          : `Não tem conta? <a id="toggle-modo">Criar conta</a>`}
-      </div>
-    </div>
-  `;
-
-  document.getElementById("toggle-modo").addEventListener("click", () => {
-    renderizarFormLogin(wrapper, ehRegistro ? "login" : "registro");
-  });
-
-  document.getElementById("form-auth").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById("btn-auth");
-    btn.disabled = true;
-    btn.textContent = "Aguarde...";
-    document.getElementById("auth-erro").textContent = "";
-
-    try {
-      const email = document.getElementById("inp-email").value;
-      const senha = document.getElementById("inp-senha").value;
-
-      if (ehRegistro) {
-        const nome = document.getElementById("inp-nome").value;
-        await auth.registro(nome, email, senha);
-      } else {
-        const resultado = await auth.login(email, senha);
-        if (resultado.requires_2fa) {
-          renderizarForm2FA(wrapper, resultado.temp_token);
-          return;
-        }
-      }
-
-      window.location.reload();
-    } catch (err) {
-      document.getElementById("auth-erro").textContent = err.message;
-      btn.disabled = false;
-      btn.textContent = ehRegistro ? "Criar conta" : "Entrar";
-    }
-  });
+    </div>`;
+  el.querySelector('#login-form').addEventListener('submit', handleLogin);
+  el.querySelector('#go-register').addEventListener('click', renderRegister);
 }
 
-// ---------------------------------------------------------------------------
-// Tela de verificação 2FA
-// ---------------------------------------------------------------------------
-function renderizarForm2FA(wrapper, tempToken) {
-  wrapper.innerHTML = `
-    <div class="login-card">
-      <div class="login-titulo">fin<span>.</span>app</div>
-      <div class="login-sub">Verificação em duas etapas</div>
-      <p style="font-size:.82rem;color:var(--muted);margin-bottom:20px">
-        Abra o Google Authenticator e digite o código de 6 dígitos.
-      </p>
-      <form id="form-2fa">
-        <div class="form-group">
-          <label class="form-label">Código</label>
-          <input class="form-input mono" type="text" id="inp-codigo"
-            placeholder="000000" maxlength="6" inputmode="numeric"
-            style="font-size:1.4rem;letter-spacing:8px;text-align:center" required />
-        </div>
-        <button class="btn-primary" type="submit" id="btn-2fa">Verificar</button>
-        <div class="form-erro" id="erro-2fa"></div>
+async function handleLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById('auth-err');
+  const email = document.getElementById('auth-email').value.trim();
+  const senha = document.getElementById('auth-senha').value;
+  if (!email || !senha) { err.textContent = 'Preencha email e senha.'; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; err.textContent = '';
+  try {
+    const data = await authPost('/login', { email, senha });
+    if (data.requires_2fa) {
+      renderOtp(email, senha);
+    } else {
+      saveToken(data.access_token);
+      localStorage.setItem('fin.username', data.nome || email.split('@')[0]);
+      hideAuth();
+      init();
+    }
+  } catch (ex) {
+    err.textContent = ex.message || 'Erro ao entrar.';
+    btn.disabled = false;
+  }
+}
+
+function renderOtp(email, senha) {
+  const el = document.getElementById('auth-box');
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
+      <h1 class="auth-title">Verificação</h1>
+      <p class="muted small" style="text-align:center">Digite o código do Google Authenticator</p>
+      <form id="otp-form" novalidate style="display:flex;flex-direction:column;gap:16px">
+        <label class="field" style="align-items:center">
+          <span class="field-label">Código</span>
+          <input class="input" id="auth-otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" required style="letter-spacing:0.3em;font-size:22px;text-align:center">
+        </label>
+        <div class="form-error" id="auth-err" role="alert"></div>
+        <button class="btn btn-primary btn-block" type="submit">Verificar</button>
+        <button class="btn btn-ghost btn-block" type="button" id="back-login">Voltar</button>
       </form>
-    </div>
-  `;
-
-  document.getElementById("form-2fa").addEventListener("submit", async (e) => {
+    </div>`;
+  el.querySelector('#otp-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = document.getElementById("btn-2fa");
-    btn.disabled = true;
-    btn.textContent = "Verificando...";
-    document.getElementById("erro-2fa").textContent = "";
-
+    const err = document.getElementById('auth-err');
+    const otp = document.getElementById('auth-otp').value.trim();
+    if (otp.length !== 6) { err.textContent = 'Código deve ter 6 dígitos.'; return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; err.textContent = '';
     try {
-      const codigo = document.getElementById("inp-codigo").value;
-      await auth.verificar2fa(tempToken, codigo);
-      window.location.reload();
-    } catch (err) {
-      document.getElementById("erro-2fa").textContent = err.message;
+      const data = await authPost('/login', { email, senha, totp: otp });
+      saveToken(data.access_token);
+      localStorage.setItem('fin.username', data.nome || email.split('@')[0]);
+      hideAuth();
+      init();
+    } catch (ex) {
+      err.textContent = ex.message || 'Código inválido.';
       btn.disabled = false;
-      btn.textContent = "Verificar";
     }
   });
+  el.querySelector('#back-login').addEventListener('click', renderLogin);
 }
 
-// ---------------------------------------------------------------------------
-// Navegação
-// ---------------------------------------------------------------------------
-function configurarNavegacao() {
-  const itens = document.querySelectorAll("[data-tela]");
-  itens.forEach((item) => {
-    item.addEventListener("click", () => {
-      const tela = item.dataset.tela;
-      navegarPara(tela);
-    });
-  });
+function renderRegister() {
+  const el = document.getElementById('auth-box');
+  el.innerHTML = `
+    <div class="auth-card">
+      <div class="auth-logo">${icon('chart', 32)}<span>fin.app</span></div>
+      <h1 class="auth-title">Criar conta</h1>
+      <form id="reg-form" novalidate style="display:flex;flex-direction:column;gap:16px">
+        <label class="field"><span class="field-label">Nome</span>
+          <input class="input" id="reg-nome" type="text" placeholder="Seu nome" autocomplete="name" required></label>
+        <label class="field"><span class="field-label">Email</span>
+          <input class="input" id="reg-email" type="email" placeholder="seu@email.com" autocomplete="email" required></label>
+        <label class="field"><span class="field-label">Senha</span>
+          <input class="input" id="reg-senha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required minlength="8"></label>
+        <div class="form-error" id="auth-err" role="alert"></div>
+        <button class="btn btn-primary btn-block" type="submit">Criar conta</button>
+        <button class="btn btn-ghost btn-block" type="button" id="back-login2">Já tenho conta</button>
+      </form>
+    </div>`;
+  el.querySelector('#reg-form').addEventListener('submit', handleRegister);
+  el.querySelector('#back-login2').addEventListener('click', renderLogin);
 }
 
-function navegarPara(tela) {
-  estado.telaAtual = tela;
-
-  // Atualiza itens ativos
-  document.querySelectorAll("[data-tela]").forEach((el) =>
-    el.classList.toggle("active", el.dataset.tela === tela)
-  );
-
-  // Mostra/esconde telas
-  document.querySelectorAll(".tela").forEach((el) =>
-    el.classList.toggle("ativa", el.id === `tela-${tela}`)
-  );
-
-  // Carrega dados da tela
-  switch (tela) {
-    case "home":         carregarHome();        break;
-    case "transacoes":   carregarTransacoes();  break;
-    case "contas":       carregarContas();      break;
-    case "config":       carregarConfig();      break;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tela: Home
-// ---------------------------------------------------------------------------
-async function carregarHome() {
-  mostrarSkeletons();
-
+async function handleRegister(e) {
+  e.preventDefault();
+  const err = document.getElementById('auth-err');
+  const nome = document.getElementById('reg-nome').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const senha = document.getElementById('reg-senha').value;
+  if (!nome || !email || senha.length < 8) { err.textContent = 'Preencha todos os campos (senha mínimo 8 caracteres).'; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; err.textContent = '';
   try {
-    const [resumo, evolucao, ultimas, cats] = await Promise.all([
-      transacoes.resumo(),
-      transacoes.evolucaoMensal(6),
-      transacoes.listar({ limite: 8 }),
-      categorias.listar(),
-    ]);
-
-    estado.categorias = cats;
-
-    renderizarKPIs(resumo);
-    renderizarGraficoBarras("grafico-barras", evolucao);
-    renderizarGraficoRosca("grafico-rosca", resumo.gastos_por_categoria);
-    renderizarUltimasTransacoes(ultimas);
-    atualizarBadgeSync();
-  } catch (err) {
-    exibirToast("Erro ao carregar dados: " + err.message, "erro");
+    await authPost('/usuarios', { nome, email, senha });
+    const data = await authPost('/login', { email, senha });
+    saveToken(data.access_token);
+    localStorage.setItem('fin.username', nome);
+    hideAuth();
+    init();
+  } catch (ex) {
+    err.textContent = ex.message || 'Erro ao criar conta.';
+    btn.disabled = false;
   }
 }
 
-function mostrarSkeletons() {
-  const grid = document.getElementById("kpi-grid");
-  if (!grid) return;
-  grid.innerHTML = Array(4)
-    .fill('<div class="kpi-card skeleton skeleton-kpi"></div>')
-    .join("");
+// ─── Router / Shell ──────────────────────────────────────────────────────────
+
+let currentHash = '';
+let viewGeneration = 0;
+
+function activeHash() {
+  const h = location.hash || '#/inicio';
+  return h.split('?')[0];
 }
 
-function renderizarKPIs(resumo) {
-  const { saldo_total, mes_atual, mes_anterior } = resumo;
-  const economia = mes_atual.receitas > 0
-    ? ((mes_atual.receitas - mes_atual.gastos) / mes_atual.receitas) * 100
-    : 0;
-
-  const deltaReceitas = calcDelta(mes_atual.receitas, mes_anterior.receitas);
-  const deltaGastos   = calcDelta(mes_atual.gastos,   mes_anterior.gastos);
-
-  const grid = document.getElementById("kpi-grid");
-  grid.innerHTML = `
-    ${kpiCard("Saldo Total",   saldo_total, "destaque", null)}
-    ${kpiCard("Receitas",      mes_atual.receitas, "positivo", deltaReceitas)}
-    ${kpiCard("Gastos",        mes_atual.gastos,   "negativo", deltaGastos, true)}
-    ${kpiCard("% Economia",    economia, "destaque", null, false, true)}
-  `;
+function go(hash) {
+  location.hash = hash;
 }
 
-function kpiCard(label, valor, classe, delta, gastos = false, percent = false) {
-  const formatado = percent
-    ? `${valor.toFixed(1)}%`
-    : formatarMoeda(valor);
+function buildShell() {
+  const nome = localStorage.getItem('fin.username') || 'Usuário';
+  document.getElementById('app-shell').innerHTML = `
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">${icon('chart', 24)}<span class="sidebar-brand">fin.app</span></div>
+      <nav class="sidebar-nav" aria-label="Menu principal">
+        ${NAV.filter((n) => !n.fab).map((n) => `
+          <a href="${n.hash}" class="nav-item" data-hash="${n.hash}">
+            ${icon(n.ic, 20)}<span>${n.label}</span>
+          </a>`).join('')}
+      </nav>
+      <div class="sidebar-footer">
+        <span class="muted small">${esc(nome)}</span>
+        <button class="icon-btn" id="btn-logout" title="Sair" aria-label="Sair">${icon('logout', 18, 2)}</button>
+      </div>
+    </aside>
 
-  let deltaHTML = "";
-  if (delta !== null) {
-    const direcao = gastos ? (delta.valor > 0 ? "down" : "up") : (delta.valor > 0 ? "up" : "down");
-    const seta    = delta.valor > 0 ? "↑" : "↓";
-    deltaHTML = `<div class="kpi-delta ${direcao}">${seta} ${Math.abs(delta.pct).toFixed(1)}% vs mês anterior</div>`;
-  }
+    <div class="main-wrap">
+      <main id="view" class="view" role="main"></main>
+    </div>
 
-  return `
-    <div class="kpi-card">
-      <div class="kpi-label">${label}</div>
-      <div class="kpi-valor mono ${classe}">${formatado}</div>
-      ${deltaHTML}
-    </div>`;
+    <nav class="bottom-nav" aria-label="Navegação">
+      ${NAV.map((n) => n.fab
+        ? `<a href="${n.hash}" class="nav-fab" data-hash="${n.hash}" aria-label="${n.label}">${icon(n.ic, 26, 2.2)}</a>`
+        : `<a href="${n.hash}" class="nav-btm" data-hash="${n.hash}">${icon(n.ic, 22)}<span>${n.label}</span></a>`
+      ).join('')}
+    </nav>`;
+
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    clearToken();
+    showAuth();
+  });
 }
 
-function calcDelta(atual, anterior) {
-  const valor = atual - anterior;
-  const pct   = anterior !== 0 ? (valor / anterior) * 100 : 0;
-  return { valor, pct };
+function syncNav(hash) {
+  document.querySelectorAll('[data-hash]').forEach((el) => {
+    el.classList.toggle('active', el.dataset.hash === hash);
+  });
 }
 
-function renderizarUltimasTransacoes(lista) {
-  const container = document.getElementById("ultimas-transacoes");
-  if (!container) return;
+async function navigate() {
+  if (!getToken() && !window.FIN_CONFIG.useMock) { showAuth(); return; }
 
-  if (!lista.length) {
-    container.innerHTML = `<div class="transacao-row" style="color:var(--muted);justify-content:center">Nenhuma transação encontrada</div>`;
-    return;
-  }
+  const fullHash = location.hash || '#/inicio';
+  const hash = fullHash.split('?')[0];
+  const params = new URLSearchParams(fullHash.includes('?') ? fullHash.split('?')[1] : '');
 
-  container.innerHTML = lista.map(renderizarLinhaTransacao).join("");
-}
+  if (hash === currentHash && hash !== '#/novo') return;
+  currentHash = hash;
 
-// ---------------------------------------------------------------------------
-// Tela: Transações
-// ---------------------------------------------------------------------------
-async function carregarTransacoes() {
-  const container = document.getElementById("lista-transacoes");
-  if (!container) return;
+  const gen = ++viewGeneration;
+  const loader = ROUTES[hash] || ROUTES['#/inicio'];
 
-  container.innerHTML = `<div class="skeleton skeleton-row" style="margin:8px 0;border-radius:8px;height:48px"></div>`.repeat(6);
+  syncNav(hash);
+  destroyCharts();
 
-  const cats = estado.categorias.length
-    ? estado.categorias
-    : await categorias.listar().then((c) => { estado.categorias = c; return c; });
+  const viewEl = document.getElementById('view');
+  viewEl.innerHTML = '';
 
-  // Monta os selects de filtro
-  const selectCat = document.getElementById("filtro-categoria");
-  if (selectCat && !selectCat.querySelector("option[value]")) {
-    cats.forEach((c) => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.nome;
-      selectCat.appendChild(opt);
-    });
-  }
+  const mod = await loader();
+  if (gen !== viewGeneration) return;
 
-  // Aplica os filtros e busca
-  const dados = await transacoes.listar(estado.filtros);
-  container.innerHTML = dados.length
-    ? dados.map(renderizarLinhaTransacao).join("")
-    : `<div class="transacao-row" style="color:var(--muted);justify-content:center">Nenhuma transação no período</div>`;
-}
-
-function configurarFiltros() {
-  const aplicar = () => {
-    estado.filtros.data_inicio = document.getElementById("filtro-inicio")?.value || null;
-    estado.filtros.data_fim    = document.getElementById("filtro-fim")?.value    || null;
-    estado.filtros.categoria_id = document.getElementById("filtro-categoria")?.value || null;
-    estado.filtros.tipo        = document.getElementById("filtro-tipo")?.value   || null;
-    carregarTransacoes();
+  const ctx = {
+    params,
+    go,
+    stale: () => gen !== viewGeneration,
   };
 
-  ["filtro-inicio", "filtro-fim", "filtro-categoria", "filtro-tipo"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", aplicar);
-  });
+  await mod.render(viewEl, ctx);
 }
 
-// ---------------------------------------------------------------------------
-// Tela: Contas
-// ---------------------------------------------------------------------------
-async function carregarContas() {
-  const grid = document.getElementById("contas-grid");
-  if (!grid) return;
+function init() {
+  buildShell();
+  navigate();
+  window.addEventListener('hashchange', navigate);
+}
 
-  grid.innerHTML = Array(3).fill(
-    `<div class="conta-card skeleton" style="height:120px"></div>`
-  ).join("");
+// ─── Boot ────────────────────────────────────────────────────────────────────
 
-  try {
-    const lista = await contas.listar();
-    grid.innerHTML = lista.length
-      ? lista.map(renderizarCartaoConta).join("")
-      : `<p style="color:var(--muted)">Nenhuma conta conectada. Vá em Configurações para conectar seu banco.</p>`;
-  } catch (err) {
-    exibirToast("Erro ao carregar contas: " + err.message, "erro");
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.FIN_CONFIG.useMock || getToken()) {
+    hideAuth();
+    init();
+  } else {
+    showAuth();
   }
-}
-
-function renderizarCartaoConta(conta) {
-  const sync = conta.ultima_sync
-    ? new Date(conta.ultima_sync).toLocaleString("pt-BR")
-    : "Nunca";
-
-  return `
-    <div class="conta-card">
-      <div class="conta-header">
-        <div>
-          <div class="conta-banco">${conta.instituicao}</div>
-          <div class="conta-tipo">${conta.tipo}</div>
-        </div>
-        <i class="ti ti-building-bank" style="color:var(--muted);font-size:1.2rem"></i>
-      </div>
-      <div class="conta-saldo mono">${formatarMoeda(conta.saldo_atual)}</div>
-      <div class="conta-nome" style="color:var(--muted);font-size:.78rem;margin-bottom:8px">${conta.nome}</div>
-      <div class="conta-sync">
-        <span class="conta-sync-dot"></span>
-        Sincronizado em ${sync}
-      </div>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Tela: Configurações
-// ---------------------------------------------------------------------------
-async function carregarConfig() {
-  document.getElementById("btn-conectar-banco")?.addEventListener("click", async () => {
-    try {
-      const { connectToken } = await pluggy.connectToken();
-      abrirPluggyConnect(connectToken);
-    } catch (err) {
-      exibirToast("Erro ao obter token de conexão: " + err.message, "erro");
-    }
-  });
-
-  document.getElementById("btn-sync-manual")?.addEventListener("click", async () => {
-    const btn = document.getElementById("btn-sync-manual");
-    btn.disabled = true;
-    btn.textContent = "Sincronizando...";
-    try {
-      await pluggy.sincronizar();
-      exibirToast("Sincronização concluída!", "sucesso");
-      atualizarBadgeSync();
-    } catch (err) {
-      exibirToast("Erro: " + err.message, "erro");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Sincronizar agora";
-    }
-  });
-
-  document.getElementById("btn-logout")?.addEventListener("click", () => {
-    auth.logout();
-  });
-
-  // 2FA
-  const btn2fa = document.getElementById("btn-2fa");
-  btn2fa?.addEventListener("click", async () => {
-    const qrContainer = document.getElementById("qrcode-container");
-    if (qrContainer.style.display === "block") {
-      qrContainer.style.display = "none";
-      btn2fa.textContent = "Ativar 2FA";
-      return;
-    }
-
-    btn2fa.disabled = true;
-    btn2fa.textContent = "Gerando QR Code...";
-    try {
-      const { qr_code } = await auth.ativar2fa();
-      document.getElementById("qrcode-img").src = qr_code;
-      qrContainer.style.display = "block";
-      btn2fa.textContent = "Cancelar";
-      btn2fa.disabled = false;
-    } catch (err) {
-      exibirToast("Erro ao ativar 2FA: " + err.message, "erro");
-      btn2fa.disabled = false;
-      btn2fa.textContent = "Ativar 2FA";
-    }
-  });
-
-  document.getElementById("btn-confirmar-2fa")?.addEventListener("click", async () => {
-    const codigo = document.getElementById("inp-codigo-2fa").value;
-    const erroEl = document.getElementById("erro-confirmar-2fa");
-    erroEl.textContent = "";
-
-    try {
-      await auth.confirmar2fa(codigo);
-      exibirToast("2FA ativado com sucesso!", "sucesso");
-      document.getElementById("qrcode-container").style.display = "none";
-      document.getElementById("btn-2fa").textContent = "Desativar 2FA";
-      document.getElementById("desc-2fa").textContent = "2FA ativo — sua conta está protegida.";
-    } catch (err) {
-      erroEl.textContent = err.message;
-    }
-  });
-}
-
-function abrirPluggyConnect(token) {
-  // Abre o Pluggy Connect via URL com o connect token
-  const url = `https://connect.pluggy.ai/?connectToken=${token}`;
-
-  const overlay = document.createElement("div");
-  overlay.id = "pluggy-overlay";
-  overlay.style.cssText = `
-    position:fixed;top:0;left:0;width:100%;height:100%;
-    background:rgba(0,0,0,.7);z-index:9999;
-    display:flex;align-items:center;justify-content:center;
-  `;
-
-  const iframe = document.createElement("iframe");
-  iframe.src = url;
-  iframe.style.cssText = `
-    width:100%;max-width:480px;height:700px;max-height:90vh;
-    border:none;border-radius:16px;
-  `;
-
-  const fechar = document.createElement("button");
-  fechar.textContent = "✕ Fechar";
-  fechar.style.cssText = `
-    position:absolute;top:16px;right:16px;
-    background:var(--surface);color:var(--text);
-    border:1px solid var(--border);border-radius:8px;
-    padding:8px 16px;cursor:pointer;font-size:.85rem;
-  `;
-
-  fechar.onclick = () => {
-    document.body.removeChild(overlay);
-    // Tenta sincronizar após fechar
-    pluggy.sincronizar().then(() => carregarContas()).catch(() => {});
-  };
-
-  overlay.appendChild(iframe);
-  overlay.appendChild(fechar);
-  document.body.appendChild(overlay);
-}
-
-// ---------------------------------------------------------------------------
-// Badge de sincronização
-// ---------------------------------------------------------------------------
-function atualizarBadgeSync() {
-  const badges = document.querySelectorAll(".sync-badge-texto");
-  const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  badges.forEach((b) => (b.textContent = `sincronizado ${hora}`));
-}
-
-// ---------------------------------------------------------------------------
-// Helpers de renderização
-// ---------------------------------------------------------------------------
-function renderizarLinhaTransacao(t) {
-  const cat     = t.categorias || { nome: "Outros", cor: "#e05c5c", icone: "tag" };
-  const isCredit = t.tipo === "CREDIT";
-  const valor    = formatarMoeda(t.valor);
-  const data     = new Date(t.data + "T00:00:00").toLocaleDateString("pt-BR");
-  const badgeCls = gerarClasseBadge(cat.nome);
-
-  return `
-    <div class="transacao-row">
-      <div class="transacao-icone" style="background:${cat.cor}22;color:${cat.cor}">
-        <i class="ti ti-${cat.icone || "tag"}"></i>
-      </div>
-      <div class="transacao-info">
-        <div class="transacao-descricao">${t.descricao}</div>
-        <div class="transacao-meta">
-          ${data} · ${t.instituicao || t.contas?.instituicao || ""}
-          <span class="badge ${badgeCls}" style="margin-left:6px">${cat.nome}</span>
-        </div>
-      </div>
-      <div class="transacao-valor ${isCredit ? "credit" : "debit"}">
-        ${isCredit ? "+" : "-"}${valor}
-      </div>
-    </div>`;
-}
-
-function gerarClasseBadge(nomeCategoria) {
-  const mapa = {
-    "Alimentação": "badge-alimentacao",
-    "Receita":     "badge-receita",
-    "Transporte":  "badge-transporte",
-  };
-  return mapa[nomeCategoria] || "badge-outros";
-}
-
-function formatarMoeda(valor) {
-  return (valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-// ---------------------------------------------------------------------------
-// Toast
-// ---------------------------------------------------------------------------
-function exibirToast(mensagem, tipo = "sucesso") {
-  const container = document.getElementById("toast-container");
-  if (!container) return;
-
-  const toast = document.createElement("div");
-  toast.className = `toast ${tipo}`;
-  toast.textContent = mensagem;
-  container.appendChild(toast);
-
-  setTimeout(() => toast.remove(), 4000);
-}
-
-// ---------------------------------------------------------------------------
-// Modal: Nova Transação Manual
-// ---------------------------------------------------------------------------
-function configurarModalTransacao() {
-  const modal   = document.getElementById("modal-transacao");
-  const btnFab  = document.getElementById("btn-nova-transacao");
-  const btnFechar = document.getElementById("modal-fechar");
-  const btnSalvar = document.getElementById("modal-salvar");
-  const erroEl  = document.getElementById("modal-erro");
-
-  // Define data padrão como hoje
-  const hoje = new Date().toISOString().split("T")[0];
-  document.getElementById("modal-data").value = hoje;
-
-  // Abre modal
-  btnFab.addEventListener("click", async () => {
-    modal.style.display = "flex";
-    document.getElementById("modal-valor").focus();
-
-    // Preenche categorias se ainda não preencheu
-    const select = document.getElementById("modal-categoria");
-    if (select.options.length <= 1) {
-      const cats = estado.categorias.length
-        ? estado.categorias
-        : await categorias.listar().then((c) => { estado.categorias = c; return c; });
-      cats.forEach((c) => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.nome;
-        select.appendChild(opt);
-      });
-    }
-  });
-
-  // Fecha modal
-  btnFechar.addEventListener("click", fecharModal);
-  modal.addEventListener("click", (e) => { if (e.target === modal) fecharModal(); });
-
-  function fecharModal() {
-    modal.style.display = "none";
-    erroEl.textContent = "";
-  }
-
-  // Tipo toggle (Gasto / Receita)
-  document.querySelectorAll(".tipo-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));
-      btn.classList.add("ativo");
-    });
-  });
-
-  // Salvar
-  btnSalvar.addEventListener("click", async () => {
-    erroEl.textContent = "";
-
-    const valor = parseFloat(document.getElementById("modal-valor").value);
-    const descricao = document.getElementById("modal-descricao").value.trim();
-    const data = document.getElementById("modal-data").value;
-    const tipo = document.querySelector(".tipo-btn.ativo")?.dataset.tipo || "DEBIT";
-    const categoria_id = document.getElementById("modal-categoria").value || null;
-
-    if (!valor || valor <= 0) { erroEl.textContent = "Informe um valor válido."; return; }
-    if (!descricao)           { erroEl.textContent = "Informe uma descrição."; return; }
-    if (!data)                { erroEl.textContent = "Informe a data."; return; }
-
-    btnSalvar.disabled = true;
-    btnSalvar.textContent = "Salvando...";
-
-    try {
-      await transacoes.criar({ descricao, valor, tipo, data, categoria_id });
-      exibirToast("Transação salva!", "sucesso");
-      fecharModal();
-
-      // Limpa campos
-      document.getElementById("modal-valor").value = "";
-      document.getElementById("modal-descricao").value = "";
-      document.getElementById("modal-data").value = new Date().toISOString().split("T")[0];
-      document.querySelectorAll(".tipo-btn").forEach((b) => b.classList.remove("ativo"));
-      document.querySelector('.tipo-btn[data-tipo="DEBIT"]').classList.add("ativo");
-
-      // Atualiza a tela atual
-      if (estado.telaAtual === "home") carregarHome();
-      else if (estado.telaAtual === "transacoes") carregarTransacoes();
-    } catch (err) {
-      erroEl.textContent = err.message;
-    } finally {
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="ti ti-check"></i> Salvar';
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Inicia listeners dos filtros após o DOM estar pronto
-// ---------------------------------------------------------------------------
-document.addEventListener("DOMContentLoaded", () => {
-  configurarFiltros();
 });

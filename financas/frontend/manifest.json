@@ -1,0 +1,32 @@
+{
+  "name": "fin.app",
+  "short_name": "fin.app",
+  "description": "Controle financeiro pessoal via Open Finance Brasil",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f13",
+  "theme_color": "#0f0f13",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Transações",
+      "url": "/?tela=transacoes",
+      "description": "Ver todas as transações"
+    }
+  ]
+}
