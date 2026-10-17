@@ -3,6 +3,7 @@ Módulo de autenticação: hash de senha com bcrypt e tokens JWT.
 """
 
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -56,4 +57,38 @@ async def usuario_atual(token: str = Depends(oauth2_scheme)) -> dict:
     Dependência FastAPI: injeta o payload do JWT em cada rota protegida.
     Uso: `usuario: dict = Depends(usuario_atual)`
     """
-    return decodificar_token(token)
+    payload = decodificar_token(token)
+    # Token temporário do 2FA só serve para /auth/verificar-2fa
+    if payload.get("totp_pendente") or not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Limite de tentativas (em memória — suficiente para um único processo)
+# ---------------------------------------------------------------------------
+_tentativas: dict[str, list[float]] = {}
+
+
+def checar_limite(chave: str, maximo: int, janela_segundos: int) -> None:
+    """Lança 429 se `chave` já atingiu `maximo` tentativas na janela."""
+    agora = time.monotonic()
+    recentes = [t for t in _tentativas.get(chave, []) if agora - t < janela_segundos]
+    _tentativas[chave] = recentes
+    if len(recentes) >= maximo:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+        )
+
+
+def registrar_tentativa(chave: str) -> None:
+    _tentativas.setdefault(chave, []).append(time.monotonic())
+
+
+def limpar_tentativas(chave: str) -> None:
+    _tentativas.pop(chave, None)
