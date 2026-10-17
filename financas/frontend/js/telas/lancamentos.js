@@ -8,18 +8,24 @@ const filtro = { tipo: '', busca: '' };
 
 export async function render(el, ctx) {
   const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
-  const [txs, cats, cartoes] = await Promise.all([api.lancamentos(mes), api.categorias(), api.cartoes().catch(() => [])]);
+  const [txs, cats, cartoes, recs] = await Promise.all([
+    api.lancamentos(mes), api.categorias(), api.cartoes().catch(() => []), api.recorrencias().catch(() => []),
+  ]);
   if (!ctx.atual()) return;
 
   const cat = categoriaPorId(cats);
   const mapaCartoes = new Map(cartoes.map((c) => [c.id, c]));
+  const recorrencias = new Map(recs.map((r) => [r.id, r]));
   const receitas = txs.filter((t) => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0);
   const despesas = txs.filter((t) => t.tipo === 'despesa').reduce((s, t) => s + t.valor, 0);
 
   el.innerHTML = `
     <header class="page-head">
       <h1 class="page-title">Lançamentos</h1>
-      <a href="#/novo" class="icon-btn destaque" aria-label="Novo lançamento">${icon('mais', 22, 2.4)}</a>
+      <div class="acoes-linha">
+        <a href="#/importar" class="btn btn-ghost btn-compacto">${icon('importar', 18, 2.2)}Importar fatura</a>
+        <a href="#/novo" class="icon-btn destaque" aria-label="Novo lançamento">${icon('mais', 22, 2.4)}</a>
+      </div>
     </header>
 
     <div class="month-nav">
@@ -62,7 +68,7 @@ export async function render(el, ctx) {
       return `
         <div class="day-group">
           <div class="day-head"><span class="strong small">${rotuloDia(dia)}</span><span class="small muted">${total < 0 ? '−' : '+'} R$ ${brl(Math.abs(total))}</span></div>
-          ${dias[dia].map((t) => linhaLancamento(t, cat(t.categoria_id), { cartoes: mapaCartoes })).join('')}
+          ${dias[dia].map((t) => linhaLancamento(t, cat(t.categoria_id), { cartoes: mapaCartoes, recorrencias })).join('')}
         </div>`;
     }).join('');
   }
@@ -75,7 +81,7 @@ export async function render(el, ctx) {
   lista.addEventListener('click', (e) => {
     const b = e.target.closest('[data-tx]');
     const t = b && txs.find((x) => x.id === b.dataset.tx);
-    if (t) abrirEdicao(t, cats, ctx.recarregar);
+    if (t) abrirEdicao(t, cats, ctx.recarregar, { recorrencias });
   });
 
   desenhar();

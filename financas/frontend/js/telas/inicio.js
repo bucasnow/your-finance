@@ -22,6 +22,8 @@ export async function render(el, ctx) {
   const ehAtual = mes === r.mes_atual;
   const cats5 = r.por_categoria.slice(0, 5);
   const totalFaturas = cartoes.reduce((s, c) => s + c.fatura_atual, 0);
+  // Primeiro acesso: conta sem nenhum lançamento ainda
+  const contaVazia = !r.recentes.length && r.evolucao.every((e) => !e.receitas && !e.despesas);
 
   el.innerHTML = `
     <header class="page-head">
@@ -30,6 +32,17 @@ export async function render(el, ctx) {
         <h1 class="page-title">Início</h1>
       </div>
     </header>
+
+    ${contaVazia ? `
+    <section class="card boas-vindas">
+      <span class="cat-icon grande" style="background:#34D39922;color:#34D399">${icon('importar', 24, 2.2)}</span>
+      <h2>Bem-vindo${primeiroNome ? `, ${esc(primeiroNome)}` : ''}! Vamos montar seu histórico</h2>
+      <p class="muted">Importe as faturas do cartão (PDF, CSV ou OFX). O fin.app separa cada compra por categoria, cria as parcelas que ainda vão vir e você revisa antes de salvar.</p>
+      <div class="acoes-linha">
+        <a href="#/importar" class="btn btn-primary">${icon('importar', 18, 2.2)}Importar faturas</a>
+        <a href="#/novo" class="btn btn-ghost">${icon('mais', 18, 2.6)}Lançar manualmente</a>
+      </div>
+    </section>` : ''}
 
     <div class="month-nav">
       <a href="#/inicio?mes=${somarMeses(mes, -1)}" class="icon-btn" aria-label="Mês anterior">${icon('esquerda', 20, 2.2)}</a>

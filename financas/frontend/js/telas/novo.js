@@ -3,6 +3,10 @@ import { icon } from '../icons.js';
 import { catIcon, FORMAS, ocupado, toast } from '../ui.js';
 import { brl, esc, hojeISO, mascaraValor, ontemISO, parseBRL } from '../utils.js';
 
+// Categorias que normalmente se repetem todo mês
+const RECORRENTES_PADRAO = ['assinatura', 'assinaturas', 'conta', 'contas'];
+const semAcento = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 export async function render(el, ctx) {
   const [cats, cartoes] = await Promise.all([api.categorias(), api.cartoes().catch(() => [])]);
   if (!ctx.atual()) return;
@@ -14,6 +18,9 @@ export async function render(el, ctx) {
     forma: 'pix',
     cartao_id: cartoes[0]?.id || null,
     parcelas: 1,
+    recorrente: false,
+    recorrenteEscolhido: false,   // depois que a pessoa mexe no botão, a categoria não muda mais a escolha
+    frequencia: 'mensal',
   };
 
   el.innerHTML = `
@@ -55,6 +62,24 @@ export async function render(el, ctx) {
           : `<div class="aviso">Você ainda não tem cartões cadastrados. <a href="#/cartoes" class="strong">Cadastrar cartão</a></div>`}
       </div>
 
+      <div class="field" id="nv-rec-campo">
+        <label class="switch-linha">
+          <span class="switch-texto">
+            <span class="strong">${icon('repete', 16, 2.2)}Recorrente</span>
+            <span class="muted small" id="nv-rec-dica"></span>
+          </span>
+          <input type="checkbox" class="switch" id="nv-rec" role="switch">
+        </label>
+        <div class="rec-opcoes" id="nv-rec-opcoes" hidden>
+          <div class="opt-row" id="nv-freq">
+            <button type="button" class="chip" data-v="mensal">Mensal</button>
+            <button type="button" class="chip" data-v="anual">Anual</button>
+          </div>
+          <label class="field"><span class="field-label">Termina em (opcional)</span>
+            <input class="input" id="nv-rec-fim" type="date"></label>
+        </div>
+      </div>
+
       <div class="form-error" role="alert"></div>
       <button class="btn btn-primary btn-block" type="submit">${icon('check', 20, 2.6)}Salvar</button>
     </form>`;
@@ -80,6 +105,24 @@ export async function render(el, ctx) {
     $('#nv-data').hidden = s.quando !== 'outra';
     $('#nv-credito').hidden = s.forma !== 'credito';
     infoParcela();
+    atualizarRecorrencia();
+  }
+
+  const parcelado = () => s.forma === 'credito' && s.parcelas > 1;
+
+  function atualizarRecorrencia() {
+    if (!s.recorrenteEscolhido) {
+      const cat = cats.find((c) => c.id === s.categoria_id);
+      s.recorrente = !!cat && RECORRENTES_PADRAO.includes(semAcento(cat.nome));
+    }
+    // Compra parcelada já se repete pelas parcelas; não pode ser recorrente também
+    $('#nv-rec-campo').hidden = parcelado();
+    $('#nv-rec').checked = s.recorrente;
+    $('#nv-rec-opcoes').hidden = !s.recorrente;
+    el.querySelectorAll('#nv-freq .chip').forEach((b) => b.classList.toggle('on', b.dataset.v === s.frequencia));
+    $('#nv-rec-dica').textContent = s.recorrente
+      ? `Repete ${s.frequencia === 'anual' ? 'todo ano' : 'todo mês'}; os próximos lançamentos são criados automaticamente`
+      : 'Repete automaticamente nos próximos meses';
   }
 
   function infoParcela() {
@@ -94,7 +137,9 @@ export async function render(el, ctx) {
   $('#nv-quando').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) { s.quando = b.dataset.v; atualizar(); } });
   $('#nv-forma').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) { s.forma = b.dataset.v; atualizar(); } });
   $('#nv-cartao')?.addEventListener('change', (e) => { s.cartao_id = e.target.value; });
-  $('#nv-parcelas')?.addEventListener('change', (e) => { s.parcelas = Number(e.target.value); infoParcela(); });
+  $('#nv-parcelas')?.addEventListener('change', (e) => { s.parcelas = Number(e.target.value); infoParcela(); atualizarRecorrencia(); });
+  $('#nv-rec').addEventListener('change', (e) => { s.recorrente = e.target.checked; s.recorrenteEscolhido = true; atualizarRecorrencia(); });
+  $('#nv-freq').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) { s.frequencia = b.dataset.v; atualizarRecorrencia(); } });
   valor.addEventListener('input', infoParcela);
 
   $('form').addEventListener('submit', async (e) => {
@@ -109,17 +154,20 @@ export async function render(el, ctx) {
       forma_pagamento: s.forma,
       cartao_id: s.forma === 'credito' ? s.cartao_id : null,
       parcelas: s.forma === 'credito' ? s.parcelas : 1,
+      recorrencia: s.recorrente && !parcelado() ? { frequencia: s.frequencia, data_fim: $('#nv-rec-fim').value || null } : null,
     };
     if (dados.valor <= 0) { erro.textContent = 'Informe um valor maior que zero.'; valor.focus(); return; }
     if (!dados.descricao) { erro.textContent = 'Informe uma descrição.'; $('#nv-desc').focus(); return; }
     if (!dados.data) { erro.textContent = 'Escolha a data.'; return; }
     if (dados.forma_pagamento === 'credito' && !dados.cartao_id) { erro.textContent = 'Cadastre um cartão para lançar no crédito.'; return; }
+    if (dados.recorrencia?.data_fim && dados.recorrencia.data_fim < dados.data) { erro.textContent = 'A data de término deve ser depois da data do lançamento.'; return; }
     erro.textContent = '';
     const btn = e.submitter;
     ocupado(btn, true, 'Salvando…');
     try {
       await api.criarLancamento(dados);
-      toast(s.tipo === 'receita' ? 'Receita salva' : 'Despesa salva');
+      const nome = s.tipo === 'receita' ? 'Receita' : 'Despesa';
+      toast(dados.recorrencia ? `${nome} recorrente salva` : `${nome} salva`);
       ctx.ir('#/inicio');
     } catch (ex) {
       erro.textContent = ex.message;

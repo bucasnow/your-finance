@@ -100,6 +100,13 @@ export const api = {
   editarLancamento: (id, dados) => req('PUT', `/transacoes/${id}`, dados),
   excluirLancamento: (id, todasParcelas = false) => req('DELETE', `/transacoes/${id}?todas_parcelas=${todasParcelas}`),
 
+  recorrencias: () => req('GET', '/recorrencias'),
+  tornarRecorrente: (id, dados) => req('POST', `/transacoes/${id}/recorrencia`, dados),
+  pararRecorrencia: (id) => req('POST', `/recorrencias/${id}/parar`),
+
+  analisarFaturas: (arquivos) => req('POST', '/importacao/analisar', { arquivos }),
+  confirmarImportacao: (dados) => req('POST', '/importacao/confirmar', dados),
+
   async categorias({ recarregar = false } = {}) {
     if (!cacheCategorias || recarregar) cacheCategorias = req('GET', '/categorias').catch((e) => { cacheCategorias = null; throw e; });
     return cacheCategorias;

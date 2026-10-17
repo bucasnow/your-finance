@@ -22,6 +22,8 @@ const PATHS = {
   contactless: 'M8.5 7.5a6 6 0 0 1 0 9M12 5a9.5 9.5 0 0 1 0 14M5 10a2.5 2.5 0 0 1 0 4',
   calendario: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
   tag: 'M3 12V3h9l9 9-9 9zM7.5 7.5h.01',
+  importar: 'M12 3v12M7 10l5 5 5-5M4 17v3h16v-3',
+  arquivo: 'M6 3h8l4 4v14H6zM14 3v4h4',
   // categorias
   comida: 'M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 0-3 3-3 6s1 3 3 3v9',
   cesta: 'M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 8H6.2M9 20.5h.01M17 20.5h.01',

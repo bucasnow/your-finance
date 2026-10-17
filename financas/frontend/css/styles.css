@@ -356,6 +356,64 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 999px; }
 
+/* ── Recorrência ── */
+.switch-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
+.switch-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.switch-texto .strong { display: inline-flex; align-items: center; gap: 6px; }
+.switch {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; width: 46px; height: 26px; border-radius: 999px;
+  background: var(--surface2); border: 1px solid var(--line); position: relative; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s, background .15s;
+}
+.switch:checked { background: color-mix(in srgb, var(--accent) 25%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.switch:checked::after { transform: translateX(20px); background: var(--accent); }
+.rec-opcoes { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.rec-box { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.rec-box > .strong, .rec-box + p, p.muted.small svg { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Importar fatura ── */
+.acoes-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn-compacto { padding: 8px 12px; font-size: 13px; }
+.voltar { display: inline-flex; align-items: center; gap: 4px; }
+.soltar {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; cursor: pointer;
+  padding: 28px 16px; border: 2px dashed var(--line); border-radius: var(--radius); transition: border-color .15s, background .15s;
+}
+.soltar:hover, .soltar.ativo { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.arquivo-linha { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 10px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.arquivo-linha:last-child { border-bottom: none; }
+.arquivo-linha .trunca { flex: 1; color: var(--text); font-size: 14px; }
+.rv-item {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "check icone main val" "check icone cat cat";
+  align-items: center; column-gap: 12px; row-gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); transition: opacity .15s;
+}
+.rv-item:last-child { border-bottom: none; }
+.rv-item .rv-check { grid-area: check; width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
+.rv-item .rv-icone { grid-area: icone; }
+.rv-item .tx-main { grid-area: main; }
+.rv-item .tx-val { grid-area: val; }
+.rv-item .rv-cat { grid-area: cat; padding: 7px 10px; font-size: 14px; }
+.rv-item .badge { align-self: flex-start; margin-top: 2px; }
+.rv-item.fora { opacity: .45; }
+.rv-rodape {
+  position: sticky; bottom: 12px; z-index: 5; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .35);
+}
+@media (min-width: 769px) {
+  .rv-item { grid-template-columns: auto auto minmax(0, 1fr) 200px auto; grid-template-areas: "check icone main cat val"; }
+}
+@media (max-width: 768px) {
+  .rv-rodape { bottom: calc(var(--bottom-h) + env(safe-area-inset-bottom) + 8px); }
+}
+
+/* ── Boas-vindas (primeiro acesso) ── */
+.boas-vindas { align-items: flex-start; gap: 10px; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.boas-vindas h2 { font-size: 18px; }
+.boas-vindas p { max-width: 560px; }
+
 /* ── Responsivo ── */
 @media (max-width: 960px) {
   .grid-3 { grid-template-columns: 1fr 1fr; }

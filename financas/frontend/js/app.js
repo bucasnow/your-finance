@@ -8,6 +8,7 @@ const TELAS_APP = {
   '#/inicio': () => import('./telas/inicio.js'),
   '#/lancamentos': () => import('./telas/lancamentos.js'),
   '#/novo': () => import('./telas/novo.js'),
+  '#/importar': () => import('./telas/importar.js'),
   '#/cartoes': () => import('./telas/cartoes.js'),
   '#/investimentos': () => import('./telas/investimentos.js'),
   '#/conta': () => import('./telas/conta.js'),

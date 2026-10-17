@@ -44,9 +44,11 @@ export function categoriaPorId(cats) {
   return (id) => mapa.get(id) || SEM_CATEGORIA;
 }
 
-export function linhaLancamento(t, cat, { cartoes } = {}) {
+export function linhaLancamento(t, cat, { cartoes, recorrencias } = {}) {
   const receita = t.tipo === 'receita';
   const parcela = t.total_parcelas > 1 ? ` · ${t.parcela_atual}/${t.total_parcelas}` : '';
+  const rec = t.recorrencia_id ? recorrencias?.get(t.recorrencia_id) : null;
+  const recorrente = t.recorrencia_id ? ` · ${rec?.frequencia === 'anual' ? 'Anual' : rec ? 'Mensal' : 'Recorrente'}` : '';
   const cartao = t.cartao_id && cartoes ? cartoes.get(t.cartao_id) : null;
   const forma = cartao ? esc(cartao.nome) : FORMAS[t.forma_pagamento] || '';
   return `
@@ -54,7 +56,7 @@ export function linhaLancamento(t, cat, { cartoes } = {}) {
       ${catIcon(cat)}
       <span class="tx-main">
         <span class="tx-desc">${esc(t.descricao)}</span>
-        <span class="tx-meta">${rotuloDia(t.data)} · ${esc(cat.nome)} · ${forma}${parcela}</span>
+        <span class="tx-meta">${rotuloDia(t.data)} · ${esc(cat.nome)} · ${forma}${parcela}${recorrente}</span>
       </span>
       <span class="tx-val ${receita ? 'pos' : ''}">${receita ? '+' : '−'} R$ ${brl(t.valor)}</span>
     </button>`;
