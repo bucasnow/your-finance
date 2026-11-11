@@ -443,6 +443,12 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .parc-linha > :nth-child(3) { display: none; }
 }
 
+/* ── Edição: excluir no topo; aporte ── */
+.ed-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.aporte-box { display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.aporte-linha { display: flex; gap: 8px; align-items: stretch; }
+.aporte-linha .amount { flex: 1; min-width: 0; }
+
 /* ── Responsivo ── */
 @media (max-width: 960px) {
   .grid-3 { grid-template-columns: 1fr 1fr; }
