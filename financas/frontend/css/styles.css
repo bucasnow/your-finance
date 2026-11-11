@@ -449,6 +449,13 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .aporte-linha { display: flex; gap: 8px; align-items: stretch; }
 .aporte-linha .amount { flex: 1; min-width: 0; }
 
+/* ── Total dos cartões no mês ── */
+.cartoes-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.total-cartoes { gap: 6px; padding: 14px 16px; }
+.total-cartoes-val { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.total-cartoes-linha { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.total-cartoes-linha .dot { width: 8px; height: 8px; }
+
 /* ── Responsivo ── */
 @media (max-width: 960px) {
   .grid-3 { grid-template-columns: 1fr 1fr; }

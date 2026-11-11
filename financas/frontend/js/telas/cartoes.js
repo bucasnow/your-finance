@@ -81,6 +81,10 @@ export async function render(el, ctx) {
   const mesFatura = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : sel.fatura_mes;
   const [fatura, cats] = await Promise.all([api.fatura(sel.id, mesFatura), api.categorias()]);
   if (!ctx.atual()) return;
+  // Faturas de todos os cartões que vencem no mesmo mês, para o total
+  const faturasMes = await Promise.all(cartoes.map((c) => (c.id === sel.id ? fatura : api.fatura(c.id, fatura.mes).catch(() => null))));
+  if (!ctx.atual()) return;
+  const totalMes = faturasMes.reduce((s, f) => s + (f?.total || 0), 0);
 
   const cat = categoriaPorId(cats);
   const usoPct = sel.limite ? Math.min(100, (sel.limite_usado / sel.limite) * 100) : 0;
@@ -95,8 +99,17 @@ export async function render(el, ctx) {
     ${quadro}
 
     <div class="cards-layout">
-      <div class="cartoes-lista">
-        ${cartoes.map((c) => `<a href="#/cartoes?id=${c.id}" class="cartao-item ${c.id === sel.id ? 'on' : ''}" aria-label="${esc(c.nome)}">${plastico(c)}</a>`).join('')}
+      <div class="cartoes-col">
+        <section class="card total-cartoes">
+          <span class="muted small strong">Total dos cartões · ${nomeMes(fatura.mes)}</span>
+          <strong class="total-cartoes-val">${money(totalMes)}</strong>
+          ${cartoes.map((c, i) => `
+            <div class="total-cartoes-linha small"><span class="dot round cor-${esc(c.cor)}"></span><span class="trunca">${esc(c.nome)}</span>
+              <span class="${c.id === sel.id ? 'strong' : 'muted'}">${money(faturasMes[i]?.total || 0)}</span></div>`).join('')}
+        </section>
+        <div class="cartoes-lista">
+          ${cartoes.map((c) => `<a href="#/cartoes?id=${c.id}&mes=${fatura.mes}" class="cartao-item ${c.id === sel.id ? 'on' : ''}" aria-label="${esc(c.nome)}">${plastico(c)}</a>`).join('')}
+        </div>
       </div>
 
       <div class="form-col">
