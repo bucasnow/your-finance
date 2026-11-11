@@ -266,7 +266,8 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .badge.pos { color: var(--pos); }
 .status-aberta { color: var(--info); }
 .status-fechada { color: var(--warn); }
-.status-futura { color: var(--muted); }
+.status-futura, .status-previa { color: var(--muted); }
+.status-paga { color: var(--pos); }
 
 .summary-row { flex-direction: row; justify-content: space-around; gap: 8px; }
 .info { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; min-width: 0; }
@@ -455,6 +456,15 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .total-cartoes-val { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
 .total-cartoes-linha { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .total-cartoes-linha .dot { width: 8px; height: 8px; }
+
+/* ── Conferência da fatura (calculado x oficial) ── */
+.conferencia { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface2); }
+
+/* ── Faturas do mês no Início ── */
+.faturas-mes { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.faturas-mes-linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 3px 0; }
+.faturas-mes-linha > :nth-child(3) { grid-column: 1 / -1; font-size: 12px; }
+.faturas-mes-linha > :nth-child(3):empty { display: none; }
 
 /* ── Responsivo ── */
 @media (max-width: 960px) {
