@@ -45,6 +45,12 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
       <label class="field"><span class="field-label">Data</span>
         <input class="input" id="ed-data" type="date" value="${t.data}"></label>
       <p class="muted small">${FORMAS[t.forma_pagamento] || ''}${parcelado ? ` · parcela ${t.parcela_atual} de ${t.total_parcelas}` : ''}</p>
+      ${recAtiva ? `
+      <label class="switch-linha">
+        <span class="switch-texto"><span class="strong">Aplicar também aos próximos meses</span>
+          <span class="muted small">Ex.: reajuste do aluguel. Os meses anteriores não mudam.</span></span>
+        <input type="checkbox" class="switch" id="ed-futuros" role="switch" checked>
+      </label>` : ''}
       <div class="form-error" role="alert"></div>
       <button class="btn btn-primary btn-block" type="submit">${icon('check', 18, 2.6)}Salvar</button>
       ${blocoRecorrencia}
@@ -70,8 +76,14 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
     ocupado(btn, true);
     try {
       await api.editarLancamento(t.id, dados);
+      const futuros = el.querySelector('#ed-futuros')?.checked;
+      if (futuros) {
+        await api.alterarRecorrencia(t.recorrencia_id, {
+          a_partir_de: t.data, descricao: dados.descricao, valor: dados.valor, categoria_id: dados.categoria_id,
+        });
+      }
       fechar();
-      toast('Lançamento atualizado');
+      toast(futuros ? 'Atualizado deste mês em diante' : 'Lançamento atualizado');
       depois();
     } catch (ex) {
       erro.textContent = ex.message;

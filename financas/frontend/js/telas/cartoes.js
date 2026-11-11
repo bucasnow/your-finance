@@ -2,7 +2,43 @@ import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
 import { categoriaPorId, confirmar, linhaLancamento, modal, ocupado, toast } from '../ui.js';
-import { ddmm, esc, mascaraValor, mesValido, money, nomeMes, parseBRL, somarMeses } from '../utils.js';
+import { ddmm, esc, mascaraValor, mesCurto, mesValido, money, nomeMes, parseBRL, somarMeses } from '../utils.js';
+
+/** Quadro com todas as compras parceladas que ainda têm parcelas a pagar. */
+function quadroParcelas(p, cartoes, cat) {
+  if (!p?.compras.length) return '';
+  const nomeCartao = new Map(cartoes.map((c) => [c.id, c.nome]));
+  return `
+    <section class="card parcelas-card">
+      <div class="card-head">
+        <h2 class="card-title">Parcelas em aberto</h2>
+        <span class="muted small">${p.compras.length} compra${p.compras.length > 1 ? 's' : ''}</span>
+      </div>
+      <div class="info-grid">
+        <div><span class="muted small">Total em parcelas</span><br><strong class="neg" style="font-size:22px">${money(p.total_restante)}</strong></div>
+        <div><span class="muted small">Parcelas deste mês</span><br><strong style="font-size:22px">${money(p.total_este_mes)}</strong></div>
+      </div>
+      <div class="parc-meses">
+        ${p.por_mes.slice(0, 12).map((m) => `<span class="chip"><span class="muted">${mesCurto(m.mes)}</span> ${money(m.valor)}</span>`).join('')}
+      </div>
+      <div class="parc-tabela" role="table" aria-label="Parcelas em aberto">
+        <div class="parc-linha parc-cab small muted" role="row">
+          <span role="columnheader">Compra</span><span role="columnheader">Parcela</span>
+          <span role="columnheader">Valor</span><span role="columnheader">Falta pagar</span>
+        </div>
+        ${p.compras.map((c) => `
+        <div class="parc-linha" role="row">
+          <span class="parc-compra" role="cell">
+            <span class="tx-desc">${esc(c.descricao)}</span>
+            <span class="tx-meta">${esc(nomeCartao.get(c.cartao_id) || 'Sem cartão')} · ${esc(cat(c.categoria_id).nome)} · até ${mesCurto(c.ultima_parcela.slice(0, 7))}</span>
+          </span>
+          <span role="cell" class="strong">${c.parcela_atual}/${c.total_parcelas}</span>
+          <span role="cell">${money(c.valor_parcela)}</span>
+          <span role="cell" class="strong">${money(c.valor_restante)}<span class="muted small" style="display:block">${c.parcelas_restantes}x</span></span>
+        </div>`).join('')}
+      </div>
+    </section>`;
+}
 
 const CORES = { padrao: 'Grafite', roxo: 'Roxo', laranja: 'Laranja', azul: 'Azul', verde: 'Verde', vermelho: 'Vermelho', preto: 'Preto', dourado: 'Dourado' };
 const STATUS = { aberta: 'Aberta', fechada: 'Fechada', futura: 'Futura' };
@@ -23,12 +59,14 @@ function plastico(c, grande = false) {
 }
 
 export async function render(el, ctx) {
-  const cartoes = await api.cartoes();
+  const [cartoes, parcelas, todasCats] = await Promise.all([api.cartoes(), api.parcelas().catch(() => null), api.categorias()]);
   if (!ctx.atual()) return;
+  const quadro = quadroParcelas(parcelas, cartoes, categoriaPorId(todasCats));
 
   if (!cartoes.length) {
     el.innerHTML = `
       <header class="page-head"><h1 class="page-title">Cartões</h1></header>
+      ${quadro}
       <section class="card vazio-grande">
         <span class="cat-icon grande" style="background:#60A5FA22;color:#60A5FA">${icon('cartao', 30)}</span>
         <h2>Nenhum cartão ainda</h2>
@@ -53,6 +91,8 @@ export async function render(el, ctx) {
       <h1 class="page-title">Cartões</h1>
       <button class="btn btn-ghost" type="button" id="ct-novo">${icon('mais', 18, 2.4)}Adicionar</button>
     </header>
+
+    ${quadro}
 
     <div class="cards-layout">
       <div class="cartoes-lista">

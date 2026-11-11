@@ -282,6 +282,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 
 /* ── Cartões ── */
 .cards-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+.cards-layout > * { min-width: 0; }
 .cartoes-lista { display: flex; flex-direction: column; gap: 12px; }
 .cartao-item { border-radius: 20px; opacity: .65; transition: opacity .15s, transform .15s; }
 .cartao-item.on, .cartao-item:hover { opacity: 1; }
@@ -414,10 +415,38 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .boas-vindas h2 { font-size: 18px; }
 .boas-vindas p { max-width: 560px; }
 
+/* ── Meta semanal ── */
+.meta-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.badge.neg { color: var(--neg); }
+.meta-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; }
+.meta-dia { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.meta-barra { width: 100%; max-width: 34px; height: 56px; border-radius: 8px; background: var(--surface2); display: flex; align-items: flex-end; overflow: hidden; }
+.meta-barra > span { width: 100%; background: var(--faint); border-radius: 8px 8px 0 0; transition: height .6s; }
+.meta-dia.hoje .meta-barra > span { background: var(--accent); }
+.meta-dia.hoje .small { color: var(--text); font-weight: 700; }
+.meta-semanas { display: flex; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; }
+
+/* ── Parcelas em aberto ── */
+.parc-meses { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.parc-meses .chip { cursor: default; }
+.parc-tabela { display: flex; flex-direction: column; }
+.parc-linha {
+  display: grid; grid-template-columns: minmax(0, 1fr) 70px 110px 120px; gap: 12px; align-items: center;
+  padding: 10px 4px; border-bottom: 1px solid var(--line); text-align: right;
+}
+.parc-linha:last-child { border-bottom: none; }
+.parc-linha > :first-child { text-align: left; }
+.parc-cab { padding-top: 0; font-weight: 600; }
+.parc-compra { display: flex; flex-direction: column; min-width: 0; }
+@media (max-width: 600px) {
+  .parc-linha { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .parc-linha > :nth-child(3) { display: none; }
+}
+
 /* ── Responsivo ── */
 @media (max-width: 960px) {
   .grid-3 { grid-template-columns: 1fr 1fr; }
-  .cards-layout { grid-template-columns: 1fr; }
+  .cards-layout { grid-template-columns: minmax(0, 1fr); }
   .cartoes-lista { flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
   .cartao-item { flex: 0 0 min(300px, 82%); scroll-snap-align: start; }
 }

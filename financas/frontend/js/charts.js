@@ -16,6 +16,7 @@ function t() {
 
 function base() {
   const c = t();
+  if (!window.Chart) return c;   // biblioteca não carregou: a tela segue sem os gráficos
   Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
   Chart.defaults.color = c.muted;
   return c;
@@ -87,6 +88,33 @@ export function barChart(canvas, { labels, values, highlight = -1, highlightColo
       }
     },
     plugins: showValues ? [valueLabels(c, highlight)] : []
+  });
+}
+
+/** Duas barras por mês lado a lado (ex.: salário x gastos). */
+export function comparativoChart(canvas, { labels, series }) {
+  const c = base();
+  return make(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: series.map((s) => ({
+        label: s.nome, data: s.valores, backgroundColor: s.cor, hoverBackgroundColor: s.cor,
+        borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 3, bottomRight: 3 }, borderSkipped: false, maxBarThickness: 28,
+      })),
+    },
+    options: {
+      maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
+      scales: {
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: c.muted, font: { weight: '600' } } },
+        y: { display: false, beginAtZero: true },
+      },
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { color: c.muted, boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 3, font: { weight: '600' } } },
+        tooltip: { ...tooltip(c), displayColors: true, callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
+      },
+    },
   });
 }
 

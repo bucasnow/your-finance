@@ -103,6 +103,14 @@ export const api = {
   recorrencias: () => req('GET', '/recorrencias'),
   tornarRecorrente: (id, dados) => req('POST', `/transacoes/${id}/recorrencia`, dados),
   pararRecorrencia: (id) => req('POST', `/recorrencias/${id}/parar`),
+  alterarRecorrencia: (id, dados) => req('PUT', `/recorrencias/${id}`, dados),
+
+  metas: () => req('GET', '/metas'),
+  criarMeta: (dados) => req('POST', '/metas', dados),
+  editarMeta: (id, dados) => req('PUT', `/metas/${id}`, dados),
+  excluirMeta: (id) => req('DELETE', `/metas/${id}`),
+
+  parcelas: () => req('GET', '/parcelas'),
 
   analisarFaturas: (arquivos) => req('POST', '/importacao/analisar', { arquivos }),
   confirmarImportacao: (dados) => req('POST', '/importacao/confirmar', dados),
