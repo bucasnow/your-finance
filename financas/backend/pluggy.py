@@ -56,15 +56,17 @@ async def _headers() -> dict:
     return {"X-API-KEY": await obter_api_key()}
 
 
-async def gerar_connect_token() -> str:
+async def gerar_connect_token(client_user_id: str) -> str:
     """
     Gera um Connect Token temporário para abrir o Pluggy Connect widget
-    no frontend sem expor o CLIENT_SECRET.
+    no frontend sem expor o CLIENT_SECRET. O `client_user_id` fica gravado
+    no item criado, para sabermos a qual usuário a conexão pertence.
     """
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{PLUGGY_BASE_URL}/connect_token",
             headers=await _headers(),
+            json={"options": {"clientUserId": client_user_id}},
             timeout=15,
         )
         resp.raise_for_status()

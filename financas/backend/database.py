@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS categorias (
     id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome  TEXT NOT NULL,
     cor   TEXT NOT NULL DEFAULT '#888899',
-    icone TEXT NOT NULL DEFAULT 'tag'
+    icone TEXT NOT NULL DEFAULT 'tag',
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE  -- NULL = categoria padrão
 );
 ALTER TABLE categorias ENABLE ROW LEVEL SECURITY;
 
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS transacoes (
     conta_id     UUID REFERENCES contas(id) ON DELETE CASCADE,
     instituicao  TEXT,
     pluggy_id    TEXT UNIQUE,               -- evita duplicatas
+    usuario_id   UUID REFERENCES usuarios(id) ON DELETE CASCADE,
     criado_em    TIMESTAMPTZ DEFAULT now()
 );
 ALTER TABLE transacoes ENABLE ROW LEVEL SECURITY;
