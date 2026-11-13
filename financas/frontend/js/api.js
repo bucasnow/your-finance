@@ -128,6 +128,8 @@ export const api = {
   editarCartao: (id, dados) => req('PUT', `/cartoes/${id}`, dados),
   excluirCartao: (id) => req('DELETE', `/cartoes/${id}`),
   fatura: (id, mes) => req('GET', `/cartoes/${id}/fatura${mes ? `?mes=${mes}` : ''}`),
+  ajustarFatura: (id, mes, dados) => req('PUT', `/cartoes/${id}/faturas/${mes}`, dados),
+  removerAjusteFatura: (id, mes) => req('DELETE', `/cartoes/${id}/faturas/${mes}`),
 
   investimentos: () => req('GET', '/investimentos'),
   criarInvestimento: (dados) => req('POST', '/investimentos', dados),

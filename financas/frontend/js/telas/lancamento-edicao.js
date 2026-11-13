@@ -33,6 +33,10 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
 
   const { el, fechar } = modal(t.tipo === 'receita' ? 'Editar receita' : 'Editar despesa', `
     <form novalidate class="form-col">
+      <div class="ed-topo">
+        <p class="muted small">${FORMAS[t.forma_pagamento] || ''}${parcelado ? ` · parcela ${t.parcela_atual} de ${t.total_parcelas}` : ''}${t.recorrencia_id ? ' · conta fixa' : ''}</p>
+        <button class="btn btn-perigo-ghost btn-compacto" type="button" id="ed-excluir">${icon('lixo', 16)}Excluir</button>
+      </div>
       <label class="field"><span class="field-label">Valor${parcelado ? ' desta parcela' : ''}</span>
         <div class="amount"><span>R$</span><input id="ed-valor" type="text" inputmode="numeric" autocomplete="off"></div></label>
       <label class="field"><span class="field-label">Descrição</span>
@@ -44,7 +48,6 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
         </select></label>
       <label class="field"><span class="field-label">Data</span>
         <input class="input" id="ed-data" type="date" value="${t.data}"></label>
-      <p class="muted small">${FORMAS[t.forma_pagamento] || ''}${parcelado ? ` · parcela ${t.parcela_atual} de ${t.total_parcelas}` : ''}</p>
       ${recAtiva ? `
       <label class="switch-linha">
         <span class="switch-texto"><span class="strong">Aplicar também aos próximos meses</span>
@@ -54,7 +57,6 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
       <div class="form-error" role="alert"></div>
       <button class="btn btn-primary btn-block" type="submit">${icon('check', 18, 2.6)}Salvar</button>
       ${blocoRecorrencia}
-      <button class="btn btn-perigo-ghost btn-block" type="button" id="ed-excluir">${icon('lixo', 18)}Excluir</button>
     </form>`);
 
   const valor = el.querySelector('#ed-valor');
@@ -133,7 +135,12 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
 
   el.querySelector('#ed-excluir').addEventListener('click', async () => {
     fechar();
-    const escolha = parcelado
+    const escolha = recAtiva
+      ? await confirmar('Excluir conta fixa', `"${t.descricao}" se repete todo mês.`, [
+        { valor: 'uma', rotulo: 'Excluir só este mês', perigo: true },
+        { valor: 'parar', rotulo: 'Excluir e parar de repetir', perigo: true },
+      ])
+      : parcelado
       ? await confirmar('Excluir parcelado', `"${t.descricao}" tem ${t.total_parcelas} parcelas.`, [
         { valor: 'uma', rotulo: 'Excluir só esta parcela', perigo: true },
         { valor: 'todas', rotulo: `Excluir as ${t.total_parcelas} parcelas`, perigo: true },
@@ -142,7 +149,9 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
     if (!escolha) return;
     try {
       await api.excluirLancamento(t.id, escolha === 'todas');
-      toast('Lançamento excluído');
+      // Parar apaga as ocorrências futuras e não cria mais nenhuma
+      if (escolha === 'parar') await api.pararRecorrencia(t.recorrencia_id);
+      toast(escolha === 'parar' ? 'Excluído; não vai mais se repetir' : 'Lançamento excluído');
       depois();
     } catch (ex) {
       toast(ex.message, 'erro');

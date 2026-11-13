@@ -90,6 +90,16 @@ export async function render(el, ctx) {
 function formulario(inv, tipos, ctx) {
   const { el, fechar } = modal(inv ? 'Editar investimento' : 'Novo investimento', `
     <form novalidate class="form-col">
+      ${inv ? `
+      <div class="aporte-box">
+        <span class="field-label">Adicionar valor (aporte)</span>
+        <div class="aporte-linha">
+          <div class="amount pequeno"><span>R$</span><input id="if-aporte" type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"></div>
+          <button class="btn btn-primary" type="button" id="if-aportar">${icon('mais', 16, 2.6)}Aportar</button>
+        </div>
+        <span class="muted small">Soma ao valor aplicado e ao valor atual.</span>
+        <div class="form-error" id="if-aporte-erro" role="alert"></div>
+      </div>` : ''}
       <label class="field"><span class="field-label">Nome</span>
         <input class="input" id="if-nome" type="text" maxlength="60" placeholder="Ex.: CDB Banco X 110% CDI" value="${esc(inv?.nome || '')}"></label>
       <div class="dois">
@@ -145,6 +155,31 @@ function formulario(inv, tipos, ctx) {
       ocupado(btn, false);
     }
   });
+
+  const aporte = el.querySelector('#if-aporte');
+  if (aporte) {
+    mascaraValor(aporte);
+    el.querySelector('#if-aportar').addEventListener('click', async (e) => {
+      const valor = parseBRL(aporte.value);
+      const erroAporte = el.querySelector('#if-aporte-erro');
+      if (valor <= 0) { erroAporte.textContent = 'Informe quanto vai adicionar.'; aporte.focus(); return; }
+      const btn = e.currentTarget;
+      ocupado(btn, true, 'Salvando…');
+      try {
+        await api.editarInvestimento(inv.id, {
+          nome: inv.nome, tipo: inv.tipo, instituicao: inv.instituicao, data_aplicacao: inv.data_aplicacao,
+          valor_aplicado: Math.round((inv.valor_aplicado + valor) * 100) / 100,
+          valor_atual: Math.round((inv.valor_atual + valor) * 100) / 100,
+        });
+        fechar();
+        toast(`${money(valor)} adicionados em ${inv.nome}`);
+        ctx.recarregar();
+      } catch (ex) {
+        erroAporte.textContent = ex.message;
+        ocupado(btn, false);
+      }
+    });
+  }
 
   el.querySelector('#if-excluir')?.addEventListener('click', async () => {
     fechar();

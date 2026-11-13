@@ -79,6 +79,16 @@ export async function render(el, ctx) {
           <div class="small muted">Gastou ${pct(gastoPct, 0)}% do ${nomeEntrada.toLowerCase()}</div>
         </div>` : ''}
         <p class="small ${resultado < 0 ? 'neg' : 'muted'} strong">${situacao}</p>
+        ${r.faturas_mes?.length ? `
+        <div class="faturas-mes small">
+          <span class="muted strong">Faturas que vencem no mês</span>
+          ${r.faturas_mes.map((f) => `
+            <a href="#/cartoes?id=${f.cartao_id}&mes=${mes}" class="faturas-mes-linha">
+              <span class="trunca">${esc(f.nome)} <span class="muted">· vence ${f.vencimento.slice(8, 10)}/${f.vencimento.slice(5, 7)}</span></span>
+              <span class="strong">${money(f.considerado)}</span>
+              ${f.diferenca != null && Math.abs(f.diferenca) >= 0.01 ? `<span class="neg">calculado ${money(f.calculado)} (${money(f.diferenca)})</span>` : f.valor_oficial != null ? '<span class="pos">confere</span>' : '<span></span>'}
+            </a>`).join('')}
+        </div>` : ''}
       </article>
 
       <article class="card mini-cards">

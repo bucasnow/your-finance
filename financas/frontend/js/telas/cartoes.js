@@ -41,7 +41,7 @@ function quadroParcelas(p, cartoes, cat) {
 }
 
 const CORES = { padrao: 'Grafite', roxo: 'Roxo', laranja: 'Laranja', azul: 'Azul', verde: 'Verde', vermelho: 'Vermelho', preto: 'Preto', dourado: 'Dourado' };
-const STATUS = { aberta: 'Aberta', fechada: 'Fechada', futura: 'Futura' };
+const STATUS = { aberta: 'Aberta', fechada: 'Fechada', paga: 'Paga', previa: 'Prévia', futura: 'Prévia' };
 
 function plastico(c, grande = false) {
   return `
@@ -81,6 +81,12 @@ export async function render(el, ctx) {
   const mesFatura = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : sel.fatura_mes;
   const [fatura, cats] = await Promise.all([api.fatura(sel.id, mesFatura), api.categorias()]);
   if (!ctx.atual()) return;
+  // Faturas de todos os cartões que vencem no mesmo mês, para o total
+  const faturasMes = await Promise.all(cartoes.map((c) => (c.id === sel.id ? fatura : api.fatura(c.id, fatura.mes).catch(() => null))));
+  if (!ctx.atual()) return;
+  // Valor oficial salvo prevalece sobre o calculado (a regra fica no servidor)
+  const considerado = (f) => (f ? f.total_considerado ?? f.total : 0);
+  const totalMes = faturasMes.reduce((s, f) => s + considerado(f), 0);
 
   const cat = categoriaPorId(cats);
   const usoPct = sel.limite ? Math.min(100, (sel.limite_usado / sel.limite) * 100) : 0;
@@ -95,8 +101,17 @@ export async function render(el, ctx) {
     ${quadro}
 
     <div class="cards-layout">
-      <div class="cartoes-lista">
-        ${cartoes.map((c) => `<a href="#/cartoes?id=${c.id}" class="cartao-item ${c.id === sel.id ? 'on' : ''}" aria-label="${esc(c.nome)}">${plastico(c)}</a>`).join('')}
+      <div class="cartoes-col">
+        <section class="card total-cartoes">
+          <span class="muted small strong">Total dos cartões · ${nomeMes(fatura.mes)}</span>
+          <strong class="total-cartoes-val">${money(totalMes)}</strong>
+          ${cartoes.map((c, i) => `
+            <div class="total-cartoes-linha small"><span class="dot round cor-${esc(c.cor)}"></span><span class="trunca">${esc(c.nome)}</span>
+              <span class="${c.id === sel.id ? 'strong' : 'muted'}">${money(considerado(faturasMes[i]))}</span></div>`).join('')}
+        </section>
+        <div class="cartoes-lista">
+          ${cartoes.map((c) => `<a href="#/cartoes?id=${c.id}&mes=${fatura.mes}" class="cartao-item ${c.id === sel.id ? 'on' : ''}" aria-label="${esc(c.nome)}">${plastico(c)}</a>`).join('')}
+        </div>
       </div>
 
       <div class="form-col">
@@ -128,14 +143,23 @@ export async function render(el, ctx) {
         <section class="card">
           <div class="card-head">
             <div>
-              <span class="badge status-${fatura.status}">${STATUS[fatura.status]}</span>
-              <div class="hero-val" style="font-size:32px;margin-top:8px">${money(fatura.total)}</div>
+              <span class="badge status-${fatura.status}">${STATUS[fatura.status] || fatura.status}</span>
+              <div class="hero-val" style="font-size:32px;margin-top:8px">${money(considerado(fatura))}</div>
             </div>
-            <a href="#/novo" class="btn btn-ghost">${icon('mais', 16, 2.4)}Compra</a>
+            <div class="acoes-linha">
+              <button class="btn btn-ghost btn-compacto" type="button" id="ct-ajustar">${icon('editar', 16, 2.2)}Ajustar fatura</button>
+              <a href="#/novo" class="btn btn-ghost btn-compacto">${icon('mais', 16, 2.4)}Compra</a>
+            </div>
           </div>
+          ${fatura.valor_oficial != null ? `
+          <div class="conferencia small">
+            <span><span class="muted">Calculado</span> <strong>${money(fatura.total)}</strong></span>
+            <span><span class="muted">Oficial</span> <strong>${money(fatura.valor_oficial)}</strong></span>
+            <span class="${Math.abs(fatura.diferenca) >= 0.01 ? 'neg' : 'pos'}"><span class="muted">Diferença</span> <strong>${Math.abs(fatura.diferenca) >= 0.01 ? money(fatura.diferenca) : 'bate'}</strong></span>
+          </div>` : ''}
           <div class="info-grid small">
-            <div><span class="muted">Fecha em</span><br><strong>${ddmm(fatura.fechamento)}</strong></div>
-            <div><span class="muted">Vence em</span><br><strong>${ddmm(fatura.vencimento)}</strong></div>
+            <div><span class="muted">Compras de</span><br><strong>${ddmm(fatura.inicio)} a ${ddmm(fatura.fechamento)}</strong></div>
+            <div><span class="muted">Vence em</span><br><strong>${ddmm(fatura.vencimento)}</strong>${fatura.datas_ajustadas ? ' <span class="muted">(ajustado)</span>' : ''}</div>
           </div>
         </section>
 
@@ -158,10 +182,65 @@ export async function render(el, ctx) {
       ctx.ir('#/cartoes');
     } catch (e) { toast(e.message, 'erro'); }
   });
+  el.querySelector('#ct-ajustar').addEventListener('click', () => ajustarFatura(sel, fatura, ctx));
   el.querySelector('#ct-compras').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tx]');
     const t = b && fatura.lancamentos.find((x) => x.id === b.dataset.tx);
     if (t) abrirEdicao(t, cats, ctx.recarregar);
+  });
+}
+
+/** Dados reais da fatura: fechamento/vencimento fora do padrão, valor oficial e se já foi paga. */
+function ajustarFatura(cartao, f, ctx) {
+  const { el, fechar } = modal(`Ajustar fatura de ${nomeMes(f.mes)}`, `
+    <form novalidate class="form-col">
+      <p class="muted small">Use quando o banco fechar ou vencer fora do dia de sempre, e para conferir o total com o da fatura.</p>
+      <div class="dois">
+        <label class="field"><span class="field-label">Fechou em</span>
+          <input class="input" id="af-fech" type="date" value="${f.datas_ajustadas ? f.fechamento : ''}"></label>
+        <label class="field"><span class="field-label">Vence em</span>
+          <input class="input" id="af-venc" type="date" value="${f.datas_ajustadas ? f.vencimento : ''}"></label>
+      </div>
+      <p class="muted small">Atual: fecha ${ddmm(f.fechamento)}, vence ${ddmm(f.vencimento)}. Deixe em branco para usar o dia padrão do cartão.</p>
+      <label class="field"><span class="field-label">Valor oficial da fatura (opcional)</span>
+        <div class="amount pequeno"><span>R$</span><input id="af-oficial" type="text" inputmode="numeric" placeholder="0,00" autocomplete="off"></div>
+        <span class="muted small">Calculado pelos lançamentos: ${money(f.total)}</span></label>
+      <label class="switch-linha"><span class="strong">Fatura paga</span><input type="checkbox" class="switch" id="af-paga" role="switch" ${f.paga ? 'checked' : ''}></label>
+      <div class="form-error" role="alert"></div>
+      <button class="btn btn-primary btn-block" type="submit">${icon('check', 18, 2.6)}Salvar</button>
+      ${f.valor_oficial != null || f.datas_ajustadas || f.paga ? '<button class="btn btn-ghost btn-block" type="button" id="af-limpar">Voltar ao padrão</button>' : ''}
+    </form>`);
+  const oficial = el.querySelector('#af-oficial');
+  mascaraValor(oficial, f.valor_oficial || 0);
+  const erro = el.querySelector('.form-error');
+
+  el.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const dados = {
+      data_fechamento: el.querySelector('#af-fech').value || null,
+      data_vencimento: el.querySelector('#af-venc').value || null,
+      valor_oficial: oficial.value ? parseBRL(oficial.value) : null,
+      paga: el.querySelector('#af-paga').checked,
+    };
+    const btn = e.submitter;
+    ocupado(btn, true, 'Salvando…');
+    try {
+      await api.ajustarFatura(cartao.id, f.mes, dados);
+      fechar();
+      toast('Fatura ajustada');
+      ctx.recarregar();
+    } catch (ex) {
+      erro.textContent = ex.message;
+      ocupado(btn, false);
+    }
+  });
+  el.querySelector('#af-limpar')?.addEventListener('click', async () => {
+    try {
+      await api.removerAjusteFatura(cartao.id, f.mes);
+      fechar();
+      toast('Fatura voltou ao padrão');
+      ctx.recarregar();
+    } catch (ex) { erro.textContent = ex.message; }
   });
 }
 
