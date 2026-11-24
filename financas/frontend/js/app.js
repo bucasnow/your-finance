@@ -63,6 +63,7 @@ function montarShell() {
           <span class="marca-texto"><strong>fin.app</strong><span class="muted small trunca">Finanças de ${esc(nome.split(' ')[0])}</span></span>
         </a>
         <nav class="sidebar-nav" aria-label="Menu principal">
+          <span class="nav-indicador" aria-hidden="true"></span>
           ${MENU.map((n) => `<a href="${n.hash}" class="nav-item" data-hash="${n.hash}">${icon(n.ic, 20)}<span>${n.nome}</span></a>`).join('')}
           <div class="side-sep"></div>
           <a href="#/importar" class="nav-item" data-hash="#/importar">${icon('importar', 20)}<span>Importar fatura</span></a>
@@ -97,6 +98,7 @@ function montarShell() {
     </div>
 
     <nav class="bottom-nav" aria-label="Navegação">
+      <span class="nav-indicador" aria-hidden="true"></span>
       ${[...MENU, { hash: '#/conta', nome: 'Conta', ic: 'usuario' }].map((n) => `
         <a href="${n.hash}" class="nav-btm" data-hash="${n.hash}">${icon(n.ic, 22)}<span>${n.nome}</span></a>`).join('')}
     </nav>`;
@@ -133,7 +135,41 @@ async function atualizarLateral() {
   } catch { box.innerHTML = ''; }
 }
 
-async function mostrar() {
+// ── Animações de troca de tela ───────────────────────────────────────────────
+const reduzirMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+const LINHAS = '.tx-row, .parc-linha, .rv-item, .legend-row, .faturas-mes-linha, .day-head';
+
+/** A nova tela entra em cascata: cada bloco e as primeiras linhas das listas, um depois do outro. */
+function animarEntrada(view, suave) {
+  view.classList.remove('entrando', 'entrando-suave');
+  if (reduzirMovimento()) return;
+  [...view.children].forEach((c, i) => c.style.setProperty('--i', Math.min(i, 8)));
+  [...view.querySelectorAll(LINHAS)].forEach((l, j) => l.style.setProperty('--j', Math.min(j, 14)));
+  void view.offsetWidth;   // reinicia a animação
+  view.classList.add(suave ? 'entrando-suave' : 'entrando');
+}
+
+/** A faixa menta desliza até o item ativo, no menu lateral e na barra do celular. */
+function moverIndicadores(caminho) {
+  document.querySelectorAll('.sidebar-nav, .bottom-nav').forEach((nav) => {
+    const ind = nav.querySelector('.nav-indicador');
+    const ativo = nav.querySelector(`[data-hash="${caminho}"]`);
+    if (!ind) return;
+    if (!ativo || !ativo.offsetParent) { ind.style.opacity = '0'; return; }
+    const primeira = !ind.dataset.pronto;
+    if (primeira) ind.style.transition = 'none';
+    ind.style.opacity = '1';
+    ind.style.transform = `translate(${ativo.offsetLeft}px, ${ativo.offsetTop}px)`;
+    ind.style.width = `${ativo.offsetWidth}px`;
+    ind.style.height = `${ativo.offsetHeight}px`;
+    if (primeira) { void ind.offsetWidth; ind.style.transition = ''; ind.dataset.pronto = '1'; }
+  });
+}
+window.addEventListener('resize', () => moverIndicadores(rotaAtual().caminho));
+
+async function mostrar(opcoes) {
+  const suave = !!opcoes?.suave;   // recarregar depois de salvar: sem saída, só um esmaecer leve
   const { caminho, params } = rotaAtual();
   const gen = ++geracao;
   destroyCharts();
@@ -153,20 +189,43 @@ async function mostrar() {
   montarShell();
   exibir('app');
   document.querySelectorAll('#app [data-hash]').forEach((a) => a.classList.toggle('active', a.dataset.hash === caminho));
+  moverIndicadores(caminho);
   const titulo = document.getElementById('topbar-titulo');
   if (titulo) titulo.textContent = TITULOS[caminho] || 'fin.app';
   atualizarLateral();
 
   const view = document.getElementById('view');
-  view.innerHTML = skeleton(120) + skeleton(260);
-  window.scrollTo(0, 0);
-  view.parentElement.scrollTo?.(0, 0);
-  const ctx = { params, ir, atual: () => gen === geracao, recarregar: mostrar };
-  try {
-    const tela = await TELAS_APP[caminho]();
+  const ctx = { params, ir, atual: () => gen === geracao, recarregar: () => mostrar({ suave: true }) };
+  const tela = TELAS_APP[caminho]();   // começa a baixar o código da tela enquanto a atual sai
+
+  // Saída: a tela atual esmaece e desfoca rapidinho
+  if (!suave && view.childElementCount && !reduzirMovimento()) {
+    view.classList.remove('entrando', 'entrando-suave');
+    view.classList.add('saindo');
+    await esperar(150);
     if (gen !== geracao) return;
-    await tela.render(view, ctx);
+  }
+  if (!suave) {
+    window.scrollTo(0, 0);
+    view.parentElement.scrollTo?.(0, 0);
+  }
+  // Se os dados demorarem, mostra o esqueleto; se vierem rápido, vai direto para a tela nova
+  const esqueleto = setTimeout(() => {
+    if (gen !== geracao || suave) return;
+    view.innerHTML = skeleton(120) + skeleton(260);
+    view.classList.remove('saindo');
+  }, view.childElementCount ? 250 : 0);
+  try {
+    const modulo = await tela;
+    if (gen !== geracao) return;
+    await modulo.render(view, ctx);
+    clearTimeout(esqueleto);
+    if (gen !== geracao) return;
+    view.classList.remove('saindo');
+    animarEntrada(view, suave);
   } catch (e) {
+    clearTimeout(esqueleto);
+    view.classList.remove('saindo');
     if (gen !== geracao || e.status === 401) return;
     console.error(e);
     erroBox(view, e.message || String(e), mostrar);
