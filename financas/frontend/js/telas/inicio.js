@@ -6,6 +6,31 @@ import { abrirMeta } from './meta.js';
 import { catIcon, categoriaPorId, linhaLancamento } from '../ui.js';
 import { brl, compact, esc, mesAtual, mesCurto, mesValido, money, nomeMes, pct, somarMeses } from '../utils.js';
 
+const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+function saudacao() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
+function dataDeHoje() {
+  const d = new Date();
+  const texto = `${DIAS[d.getDay()]}, ${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}`;
+  return texto[0].toUpperCase() + texto.slice(1);
+}
+
+/** "A fatura do Visa vence em 3 dias (R$ 782,74)." — a próxima a vencer entre os cartões. */
+function proximaFatura(cartoes) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const prox = cartoes
+    .map((c) => ({ ...c, dias: Math.round((new Date(`${c.vencimento}T00:00:00`) - hoje) / 86400000) }))
+    .filter((c) => c.dias >= 0 && c.fatura_atual > 0)
+    .sort((a, b) => a.dias - b.dias)[0];
+  if (!prox) return 'Suas finanças do mês, num lugar só.';
+  const quando = prox.dias === 0 ? 'vence hoje' : prox.dias === 1 ? 'vence amanhã' : `vence em ${prox.dias} dias`;
+  return `A fatura do ${esc(prox.nome)} ${quando} (${money(prox.fatura_atual)}).`;
+}
+
 export async function render(el, ctx) {
   const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
 
@@ -43,8 +68,13 @@ export async function render(el, ctx) {
   el.innerHTML = `
     <header class="page-head">
       <div>
-        <p class="muted small strong">${primeiroNome ? `Olá, ${esc(primeiroNome)}` : 'Olá'}</p>
-        <h1 class="page-title">Início</h1>
+        <p class="saudacao-data">${dataDeHoje()}</p>
+        <h1 class="page-title">${saudacao()}${primeiroNome ? `, ${esc(primeiroNome)}` : ''}</h1>
+        <p class="saudacao-sub">${proximaFatura(cartoes)}</p>
+      </div>
+      <div class="acoes-linha">
+        <a href="#/importar" class="btn btn-ghost">${icon('importar', 18, 2.2)}Importar fatura</a>
+        <a href="#/novo" class="btn btn-primary">${icon('mais', 18, 2.6)}Novo lançamento</a>
       </div>
     </header>
 
@@ -177,8 +207,8 @@ export async function render(el, ctx) {
   comparativoChart(el.querySelector('#ch-bar'), {
     labels: r.evolucao.map((e) => mesCurto(e.mes)),
     series: [
-      { nome: nomeEntrada, valores: r.evolucao.map((e) => (usaSalario ? e.salario : e.receitas)), cor: '#34D399' },
-      { nome: 'Gastos', valores: r.evolucao.map((e) => e.despesas), cor: '#F87171' },
+      { nome: nomeEntrada, valores: r.evolucao.map((e) => (usaSalario ? e.salario : e.receitas)), cor: '#6ee0a1' },
+      { nome: 'Gastos', valores: r.evolucao.map((e) => e.despesas), cor: '#8c9d94' },
     ],
   });
 

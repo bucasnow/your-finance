@@ -17,7 +17,7 @@ function t() {
 function base() {
   const c = t();
   if (!window.Chart) return c;   // biblioteca não carregou: a tela segue sem os gráficos
-  Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+  Chart.defaults.font.family = "'Urbanist', system-ui, sans-serif";
   Chart.defaults.color = c.muted;
   return c;
 }
@@ -173,7 +173,7 @@ function valueLabels(c, highlight) {
       const { ctx } = chart;
       ctx.save();
       ctx.textAlign = 'center';
-      ctx.font = "700 11px 'Plus Jakarta Sans', system-ui, sans-serif";
+      ctx.font = "700 11px 'Urbanist', system-ui, sans-serif";
       meta.data.forEach((bar, i) => {
         const v = chart.data.datasets[0].data[i];
         if (!v) return;
