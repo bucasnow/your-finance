@@ -8,8 +8,12 @@ const filtro = { tipo: '', busca: '' };
 
 export async function render(el, ctx) {
   const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
+  if (ctx.params.has('busca')) filtro.busca = ctx.params.get('busca');   // vindo da busca do topo
+  // Busca do topo sem mês escolhido: procura em todos os meses
+  const todosMeses = !!ctx.params.get('busca') && !mesValido(ctx.params.get('mes'));
   const [txs, cats, cartoes, recs] = await Promise.all([
-    api.lancamentos(mes), api.categorias(), api.cartoes().catch(() => []), api.recorrencias().catch(() => []),
+    todosMeses ? api.todosLancamentos() : api.lancamentos(mes),
+    api.categorias(), api.cartoes().catch(() => []), api.recorrencias().catch(() => []),
   ]);
   if (!ctx.atual()) return;
 
@@ -28,17 +32,22 @@ export async function render(el, ctx) {
       </div>
     </header>
 
+    ${todosMeses ? `
+    <div class="month-nav">
+      <span class="strong" style="padding-left:10px">Buscando em todos os meses</span>
+      <a href="#/lancamentos" class="btn btn-ghost btn-compacto">Ver por mês</a>
+    </div>` : `
     <div class="month-nav">
       <a href="#/lancamentos?mes=${somarMeses(mes, -1)}" class="icon-btn" aria-label="Mês anterior">${icon('esquerda', 20, 2.2)}</a>
       <span class="strong">${nomeMes(mes)}</span>
       <a href="#/lancamentos?mes=${somarMeses(mes, 1)}" class="icon-btn" aria-label="Próximo mês">${icon('direita', 20, 2.2)}</a>
-    </div>
+    </div>`}
 
-    <section class="card summary-row">
+    ${todosMeses ? '' : `<section class="card summary-row">
       <div class="info"><span class="muted small">Receitas</span><strong class="pos">${money(receitas)}</strong></div>
       <div class="info"><span class="muted small">Despesas</span><strong class="neg">${money(despesas)}</strong></div>
       <div class="info"><span class="muted small">Saldo</span><strong class="${receitas - despesas < 0 ? 'neg' : ''}">${money(receitas - despesas)}</strong></div>
-    </section>
+    </section>`}
 
     <div class="filtros-linha">
       <div class="seg" id="lc-tipo">
@@ -85,4 +94,5 @@ export async function render(el, ctx) {
   });
 
   desenhar();
+  if (ctx.params.has('busca')) el.querySelector('#lc-busca').focus();
 }

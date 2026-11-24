@@ -96,6 +96,7 @@ export const api = {
   // Dados
   resumo: (mes) => req('GET', `/resumo?mes=${mes}`),
   lancamentos: (mes) => req('GET', `/transacoes?mes=${mes}`),
+  todosLancamentos: () => req('GET', '/transacoes?limite=1000'),
   criarLancamento: (dados) => req('POST', '/transacoes', dados),
   editarLancamento: (id, dados) => req('PUT', `/transacoes/${id}`, dados),
   excluirLancamento: (id, todasParcelas = false) => req('DELETE', `/transacoes/${id}?todas_parcelas=${todasParcelas}`),
