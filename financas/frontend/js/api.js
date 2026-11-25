@@ -140,11 +140,13 @@ export const api = {
   desativar2fa: (senha) => req('POST', '/auth/2fa/desativar', { senha }),
 
   // Dados
-  resumo: (mes) => req('GET', `/resumo?mes=${mes}`),
+  resumo: (mes, visao = 'caixa') => req('GET', `/resumo?mes=${mes}${visao === 'competencia' ? '&visao=competencia' : ''}`),
   lancamentos: (mes) => req('GET', `/transacoes?mes=${mes}`),
   todosLancamentos: () => req('GET', '/transacoes?limite=1000'),
   criarLancamento: (dados) => req('POST', '/transacoes', dados),
   editarLancamento: (id, dados) => req('PUT', `/transacoes/${id}`, dados),
+  moverFatura: (id, mes) => req('PUT', `/transacoes/${id}/fatura`, { mes }),
+  faturaAutomatica: (id) => req('DELETE', `/transacoes/${id}/fatura`),
   excluirLancamento: (id, todasParcelas = false) => req('DELETE', `/transacoes/${id}?todas_parcelas=${todasParcelas}`),
 
   recorrencias: () => req('GET', '/recorrencias'),

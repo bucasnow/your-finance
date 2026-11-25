@@ -31,11 +31,22 @@ function proximaFatura(cartoes) {
   return `A fatura do ${esc(prox.nome)} ${quando} (${money(prox.fatura_atual)}).`;
 }
 
+// Caixa: compra no cartão conta no mês em que a fatura vence. Competência: no mês da compra.
+const CHAVE_VISAO = 'fin.visao';
+function visaoEscolhida(params) {
+  const v = params.get('visao');
+  if (v === 'caixa' || v === 'competencia') return v;
+  try { return localStorage.getItem(CHAVE_VISAO) === 'competencia' ? 'competencia' : 'caixa'; } catch { return 'caixa'; }
+}
+
 export async function render(el, ctx) {
   const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
+  const visao = visaoEscolhida(ctx.params);
+  const competencia = visao === 'competencia';
+  const daVisao = competencia ? '&visao=competencia' : '';
 
   const [r, cats, cartoes, metas] = await Promise.all([
-    api.resumo(mes),
+    api.resumo(mes, visao),
     api.categorias(),
     api.cartoes().catch(() => []),
     api.metas().catch(() => []),
@@ -90,9 +101,19 @@ export async function render(el, ctx) {
     </section>` : ''}
 
     <div class="month-nav">
-      <a href="#/inicio?mes=${somarMeses(mes, -1)}" class="icon-btn" aria-label="Mês anterior">${icon('esquerda', 20, 2.2)}</a>
+      <a href="#/inicio?mes=${somarMeses(mes, -1)}${daVisao}" class="icon-btn" aria-label="Mês anterior">${icon('esquerda', 20, 2.2)}</a>
       <span class="strong">${nomeMes(mes)}</span>
-      ${ehAtual ? '<span class="icon-btn" aria-hidden="true"></span>' : `<a href="#/inicio?mes=${somarMeses(mes, 1)}" class="icon-btn" aria-label="Próximo mês">${icon('direita', 20, 2.2)}</a>`}
+      ${ehAtual ? '<span class="icon-btn" aria-hidden="true"></span>' : `<a href="#/inicio?mes=${somarMeses(mes, 1)}${daVisao}" class="icon-btn" aria-label="Próximo mês">${icon('direita', 20, 2.2)}</a>`}
+    </div>
+
+    <div class="visao-linha">
+      <div class="seg seg-visao" id="in-visao" role="radiogroup" aria-label="Como contar os gastos do cartão">
+        <button type="button" role="radio" data-v="caixa" class="${competencia ? '' : 'on'}" aria-checked="${!competencia}">Caixa (vencimento)</button>
+        <button type="button" role="radio" data-v="competencia" class="${competencia ? 'on' : ''}" aria-checked="${competencia}">Competência (compra)</button>
+      </div>
+      <span class="small muted">${competencia
+        ? 'Compras no cartão contam no mês em que foram feitas.'
+        : 'Compras no cartão contam no mês em que a fatura vence.'}</span>
     </div>
 
     <section class="grid-3">
@@ -109,7 +130,7 @@ export async function render(el, ctx) {
           <div class="small muted">Gastou ${pct(gastoPct, 0)}% do ${nomeEntrada.toLowerCase()}</div>
         </div>` : ''}
         <p class="small ${resultado < 0 ? 'neg' : 'muted'} strong">${situacao}</p>
-        ${r.faturas_mes?.length ? `
+        ${!competencia && r.faturas_mes?.length ? `
         <div class="faturas-mes small">
           <span class="muted strong">Faturas que vencem no mês</span>
           ${r.faturas_mes.map((f) => `
@@ -213,6 +234,13 @@ export async function render(el, ctx) {
   });
 
   el.querySelector('#meta-editar').addEventListener('click', () => abrirMeta(meta || null, cats, ctx.recarregar));
+
+  el.querySelector('#in-visao').addEventListener('click', (e) => {
+    const v = e.target.closest('[data-v]')?.dataset.v;
+    if (!v || v === visao) return;
+    try { localStorage.setItem(CHAVE_VISAO, v); } catch { /* modo privado */ }
+    ctx.ir(`#/inicio?mes=${mes}${v === 'competencia' ? '&visao=competencia' : '&visao=caixa'}`);
+  });
 
   el.querySelector('#recentes').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tx]');
