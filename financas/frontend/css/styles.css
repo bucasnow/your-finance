@@ -715,7 +715,7 @@ select.input option { background: #111916; color: var(--text); }
 @keyframes esmaecer { from { opacity: .4; } to { opacity: 1; } }
 
 /* Faixa menta que desliza até o item ativo */
-.sidebar-nav, .bottom-nav { position: relative; }
+.sidebar-nav { position: relative; }   /* a barra do celular já é fixed */
 .nav-indicador {
   position: absolute; top: 0; left: 0; z-index: 0; border-radius: 14px; pointer-events: none; opacity: 0;
   background: var(--accent); box-shadow: 0 8px 22px -10px rgba(110, 224, 161, .55);

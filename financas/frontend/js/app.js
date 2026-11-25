@@ -245,6 +245,24 @@ document.addEventListener('fin:entrou', () => {
   ir('#/inicio');
 });
 
+// Chegaram dados mais novos do que os mostrados: redesenha de leve, se a pessoa não estiver digitando
+const TELAS_SO_LEITURA = ['#/inicio', '#/lancamentos', '#/cartoes', '#/investimentos'];
+let redesenho = null;
+document.addEventListener('fin:dados-novos', () => {
+  clearTimeout(redesenho);
+  redesenho = setTimeout(() => {
+    const ativo = document.activeElement;
+    const digitando = ativo && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName);
+    if (!TELAS_SO_LEITURA.includes(rotaAtual().caminho) || digitando || document.querySelector('.modal-fundo')) return;
+    mostrar({ suave: true });
+  }, 120);
+});
+
+// Baixa o código das outras telas enquanto o navegador está livre
+(window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => {
+  if (sessao.token) Object.values(TELAS_APP).forEach((carregar) => carregar().catch(() => {}));
+});
+
 document.addEventListener('fin:lento', (e) => {
   document.getElementById('banner').hidden = !e.detail;
 });
