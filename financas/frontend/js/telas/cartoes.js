@@ -79,11 +79,18 @@ export async function render(el, ctx) {
 
   const sel = cartoes.find((c) => c.id === ctx.params.get('id')) || cartoes[0];
   const mesFatura = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : sel.fatura_mes;
-  const [fatura, cats] = await Promise.all([api.fatura(sel.id, mesFatura), api.categorias()]);
+  // Fatura do cartão escolhido e as dos outros cartões no mesmo mês (para o total), tudo de uma vez
+  const [cats, ...faturasMes] = await Promise.all([
+    api.categorias(),
+    ...cartoes.map((c) => (c.id === sel.id ? api.fatura(c.id, mesFatura) : api.fatura(c.id, mesFatura).catch(() => null))),
+  ]);
   if (!ctx.atual()) return;
-  // Faturas de todos os cartões que vencem no mesmo mês, para o total
-  const faturasMes = await Promise.all(cartoes.map((c) => (c.id === sel.id ? fatura : api.fatura(c.id, fatura.mes).catch(() => null))));
-  if (!ctx.atual()) return;
+  const fatura = faturasMes[cartoes.indexOf(sel)];
+  if (fatura.mes !== mesFatura) {   // o servidor ajustou o mês: busca as outras de novo nesse mês
+    const outras = await Promise.all(cartoes.map((c) => (c.id === sel.id ? fatura : api.fatura(c.id, fatura.mes).catch(() => null))));
+    if (!ctx.atual()) return;
+    faturasMes.splice(0, faturasMes.length, ...outras);
+  }
   // Valor oficial salvo prevalece sobre o calculado (a regra fica no servidor)
   const considerado = (f) => (f ? f.total_considerado ?? f.total : 0);
   const totalMes = faturasMes.reduce((s, f) => s + considerado(f), 0);

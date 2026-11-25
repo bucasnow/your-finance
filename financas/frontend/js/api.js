@@ -30,7 +30,53 @@ function sinalLento(delta) {
   document.dispatchEvent(new CustomEvent('fin:lento', { detail: pendentesLentas > 0 }));
 }
 
-async function req(metodo, caminho, corpo, { autenticado = true } = {}) {
+// ── Cache das leituras (mostra na hora o que já foi carregado e confere em segundo plano) ──
+const memoria = new Map();      // caminho -> JSON (texto) da última resposta
+const conferindo = new Map();   // caminho -> busca em andamento
+const MAX_CACHE = 60;
+let versao = 0;                // muda a cada gravação: respostas de antes dela não entram no cache
+
+function guardar(caminho, json) {
+  memoria.delete(caminho);
+  memoria.set(caminho, JSON.stringify(json));
+  if (memoria.size > MAX_CACHE) memoria.delete(memoria.keys().next().value);
+}
+
+function conferir(caminho, opcoes) {
+  if (conferindo.has(caminho)) return conferindo.get(caminho);
+  const token = sessao.token, v = versao;
+  const p = rede('GET', caminho, undefined, opcoes)
+    .then((json) => {
+      if (token !== sessao.token || v !== versao) return json;
+      const antes = memoria.get(caminho);
+      guardar(caminho, json);
+      if (antes !== undefined && antes !== memoria.get(caminho)) {
+        document.dispatchEvent(new CustomEvent('fin:dados-novos', { detail: caminho }));
+      }
+      return json;
+    })
+    .finally(() => conferindo.delete(caminho));
+  conferindo.set(caminho, p);
+  return p;
+}
+
+async function req(metodo, caminho, corpo, opcoes = {}) {
+  const autenticado = opcoes.autenticado !== false;
+  if (metodo === 'GET' && autenticado) {
+    const guardado = memoria.get(caminho);
+    const fresco = conferir(caminho, opcoes);
+    if (guardado !== undefined) {
+      fresco.catch(() => {});        // falha em segundo plano: fica o que já está na tela
+      return JSON.parse(guardado);   // cópia nova a cada vez: a tela pode mexer à vontade
+    }
+    return JSON.parse(JSON.stringify(await fresco));
+  }
+  const r = await rede(metodo, caminho, corpo, opcoes);
+  if (metodo !== 'GET') { versao++; memoria.clear(); }   // salvou algo: as leituras guardadas ficam velhas
+  return r;
+}
+
+async function rede(metodo, caminho, corpo, { autenticado = true } = {}) {
   const token = autenticado ? sessao.token : null;
   if (autenticado && !token) {
     document.dispatchEvent(new CustomEvent('fin:sair'));
@@ -122,7 +168,7 @@ export const api = {
   },
   criarCategoria: async (dados) => { const c = await req('POST', '/categorias', dados); cacheCategorias = null; return c; },
   excluirCategoria: async (id) => { await req('DELETE', `/categorias/${id}`); cacheCategorias = null; },
-  limparCache: () => { cacheCategorias = null; },
+  limparCache: () => { cacheCategorias = null; versao++; memoria.clear(); },
 
   cartoes: () => req('GET', '/cartoes'),
   criarCartao: (dados) => req('POST', '/cartoes', dados),
