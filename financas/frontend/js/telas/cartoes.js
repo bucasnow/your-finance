@@ -193,7 +193,7 @@ export async function render(el, ctx) {
   el.querySelector('#ct-compras').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tx]');
     const t = b && fatura.lancamentos.find((x) => x.id === b.dataset.tx);
-    if (t) abrirEdicao(t, cats, ctx.recarregar);
+    if (t) abrirEdicao(t, cats, ctx.recarregar, { faturaMes: fatura.mes });
   });
 }
 

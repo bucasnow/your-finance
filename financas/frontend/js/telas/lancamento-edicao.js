@@ -1,9 +1,9 @@
 import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { confirmar, FORMAS, modal, ocupado, toast } from '../ui.js';
-import { esc, mascaraValor, parseBRL } from '../utils.js';
+import { esc, mascaraValor, nomeMes, parseBRL, somarMeses } from '../utils.js';
 
-export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
+export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
   const doTipo = cats.filter((c) => c.tipo === t.tipo);
   const parcelado = t.total_parcelas > 1;
   const rec = t.recorrencia_id ? recorrencias?.get(t.recorrencia_id) : null;
@@ -31,6 +31,18 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
         </div>
       </div>`;
 
+  // Compra no cartão: escolher a fatura (ex.: IOF que o banco cobrou em outra fatura)
+  const fixada = t.fatura_mes || '';
+  const centro = fixada || faturaMes || somarMeses(t.data.slice(0, 7), 1);
+  const mesesFatura = [-2, -1, 0, 1, 2, 3].map((d) => somarMeses(centro, d));
+  const campoFatura = t.cartao_id ? `
+      <label class="field"><span class="field-label">Fatura</span>
+        <select class="input" id="ed-fatura">
+          <option value="">Automática, pela data${!fixada && faturaMes ? ` (vence em ${nomeMes(faturaMes).toLowerCase()})` : ''}</option>
+          ${mesesFatura.map((m) => `<option value="${m}" ${m === fixada ? 'selected' : ''}>Fatura que vence em ${nomeMes(m).toLowerCase()}</option>`).join('')}
+        </select>
+        <span class="muted small">Use se o banco cobrou este lançamento em outra fatura.</span></label>` : '';
+
   const { el, fechar } = modal(t.tipo === 'receita' ? 'Editar receita' : 'Editar despesa', `
     <form novalidate class="form-col">
       <div class="ed-topo">
@@ -48,6 +60,7 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
         </select></label>
       <label class="field"><span class="field-label">Data</span>
         <input class="input" id="ed-data" type="date" value="${t.data}"></label>
+      ${campoFatura}
       ${recAtiva ? `
       <label class="switch-linha">
         <span class="switch-texto"><span class="strong">Aplicar também aos próximos meses</span>
@@ -78,6 +91,10 @@ export function abrirEdicao(t, cats, depois, { recorrencias } = {}) {
     ocupado(btn, true);
     try {
       await api.editarLancamento(t.id, dados);
+      const fatura = el.querySelector('#ed-fatura')?.value;
+      if (fatura !== undefined && fatura !== fixada) {
+        await (fatura ? api.moverFatura(t.id, fatura) : api.faturaAutomatica(t.id));
+      }
       const futuros = el.querySelector('#ed-futuros')?.checked;
       if (futuros) {
         await api.alterarRecorrencia(t.recorrencia_id, {

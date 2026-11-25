@@ -1,5 +1,5 @@
 import { icon } from './icons.js';
-import { alpha, brl, esc, rotuloDia } from './utils.js';
+import { alpha, brl, esc, mesCurto, rotuloDia } from './utils.js';
 
 export const FORMAS = {
   pix: 'Pix', debito: 'Débito', credito: 'Crédito', dinheiro: 'Dinheiro', boleto: 'Boleto', transferencia: 'Transferência',
@@ -51,12 +51,13 @@ export function linhaLancamento(t, cat, { cartoes, recorrencias } = {}) {
   const recorrente = t.recorrencia_id ? ` · ${rec?.frequencia === 'anual' ? 'Anual' : rec ? 'Mensal' : 'Recorrente'}` : '';
   const cartao = t.cartao_id && cartoes ? cartoes.get(t.cartao_id) : null;
   const forma = cartao ? esc(cartao.nome) : FORMAS[t.forma_pagamento] || '';
+  const movido = t.fatura_mes ? ` · fatura de ${mesCurto(t.fatura_mes)}` : '';
   return `
     <button type="button" class="tx-row" data-tx="${t.id}">
       ${catIcon(cat)}
       <span class="tx-main">
         <span class="tx-desc">${esc(t.descricao)}</span>
-        <span class="tx-meta">${rotuloDia(t.data)} · ${esc(cat.nome)} · ${forma}${parcela}${recorrente}</span>
+        <span class="tx-meta">${rotuloDia(t.data)} · ${esc(cat.nome)} · ${forma}${parcela}${recorrente}${movido}</span>
       </span>
       <span class="tx-val ${receita ? 'pos' : ''}">${receita ? '+' : '−'} R$ ${brl(t.valor)}</span>
     </button>`;
