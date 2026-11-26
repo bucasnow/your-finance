@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { catIcon, categoriaPorId, ocupado, toast } from '../ui.js';
-import { brl, ddmm, esc, money } from '../utils.js';
+import { brl, ddmm, esc, mesAtual, money, nomeMes, somarMeses } from '../utils.js';
 
 const MAX_ARQUIVOS = 12;
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -127,6 +127,13 @@ export async function render(el, ctx) {
     }
 
     $('#im-envio').hidden = true;
+    // Com cartão, tudo o que veio numa fatura fica nela (a data da compra não decide o mês)
+    const cartaoId = $('#im-cartao')?.value || null;
+    const lidosOk = lidos.filter((a) => !a.erro && a.itens);
+    const faturaPorArquivo = new Map(lidosOk.map((a) => [a.nome, a.fatura_mes || mesAtual()]));
+    const opcoesFatura = (sugerido) => [-3, -2, -1, 0, 1, 2]
+      .map((d) => somarMeses(sugerido, d))
+      .map((m) => `<option value="${m}" ${m === sugerido ? 'selected' : ''}>Vence em ${nomeMes(m).toLowerCase()}</option>`).join('');
     const noApp = itens.filter((i) => i.motivo_duplicado === 'no_app').length;
     const repetidos = itens.filter((i) => i.motivo_duplicado === 'repetido').length;
     const plural = (n, um, varios) => (n === 1 ? um : varios);
@@ -144,6 +151,13 @@ export async function render(el, ctx) {
         ${noApp ? `<div class="aviso">${noApp} ${plural(noApp, 'lançamento já está', 'lançamentos já estão')} no app (mesma data, valor e descrição) e ${plural(noApp, 'veio desmarcado', 'vieram desmarcados')}.</div>` : ''}
         ${repetidos ? `<div class="aviso">${repetidos} ${plural(repetidos, 'lançamento aparece', 'lançamentos aparecem')} em mais de um arquivo e ${plural(repetidos, 'a cópia veio desmarcada', 'as cópias vieram desmarcadas')}.</div>` : ''}
         ${problemas.map((a) => `<div class="aviso"><strong>${esc(a.nome)}:</strong> ${esc(a.erro)}</div>`).join('')}
+        ${cartaoId ? `
+        <div class="rv-faturas">
+          ${lidosOk.map((a) => `
+            <label class="field"><span class="field-label">${lidosOk.length > 1 ? `Fatura de ${esc(a.nome)}` : 'De qual fatura são essas compras?'}</span>
+              <select class="input" data-fatura-arquivo="${esc(a.nome)}">${opcoesFatura(faturaPorArquivo.get(a.nome))}</select></label>`).join('')}
+          <p class="muted small">Tudo o que veio na fatura entra nela, mesmo as compras com data do mês anterior. As parcelas seguintes vão para as próximas faturas.</p>
+        </div>` : `<p class="muted small">Escolha o cartão na tela anterior para as compras ficarem na fatura certa.</p>`}
         <label class="switch-linha"><span class="small strong">Selecionar todos</span><input type="checkbox" class="switch" id="rv-todos"></label>
       </section>
 
@@ -215,6 +229,9 @@ export async function render(el, ctx) {
       for (const s of estado.values()) s.incluir = e.target.checked;
       sincronizar();
     });
+    box.querySelectorAll('[data-fatura-arquivo]').forEach((sel) => sel.addEventListener('change', () => {
+      faturaPorArquivo.set(sel.dataset.faturaArquivo, sel.value);
+    }));
     $('#rv-voltar').addEventListener('click', () => { box.innerHTML = ''; $('#im-envio').hidden = false; });
 
     $('#rv-salvar').addEventListener('click', async (e) => {
@@ -222,6 +239,7 @@ export async function render(el, ctx) {
         data: i.data, descricao: i.descricao, valor: i.valor, tipo: i.tipo,
         categoria_id: estado.get(i.id).categoria_id, categoria_sugerida: i.categoria_sugerida,
         parcela_atual: i.parcela_atual, total_parcelas: i.total_parcelas,
+        fatura_mes: cartaoId ? faturaPorArquivo.get(i.arquivo) || null : null,
       }));
       const btn = e.currentTarget;
       ocupado(btn, true, 'Importando…');
@@ -229,8 +247,13 @@ export async function render(el, ctx) {
         const r = await api.confirmarImportacao({ cartao_id: $('#im-cartao')?.value || null, itens: escolhidos });
         toast(`${r.importados} lançamento${r.importados === 1 ? '' : 's'} importado${r.importados === 1 ? '' : 's'}`
           + (r.duplicados ? ` · ${r.duplicados} repetido${r.duplicados === 1 ? '' : 's'} ignorado${r.duplicados === 1 ? '' : 's'}` : ''));
-        const maisRecente = escolhidos.map((i) => i.data).sort().at(-1);
-        ctx.ir(`#/lancamentos?mes=${maisRecente.slice(0, 7)}`);
+        const faturas = [...new Set(escolhidos.map((i) => i.fatura_mes).filter(Boolean))].sort();
+        if (cartaoId && faturas.length) {
+          ctx.ir(`#/cartoes?id=${cartaoId}&mes=${faturas.at(-1)}`);   // mostra a fatura importada
+        } else {
+          const maisRecente = escolhidos.map((i) => i.data).sort().at(-1);
+          ctx.ir(`#/lancamentos?mes=${maisRecente.slice(0, 7)}`);
+        }
       } catch (ex) {
         toast(ex.message, 'erro');
         ocupado(btn, false);
