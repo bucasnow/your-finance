@@ -2,6 +2,8 @@ import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
 import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
+import { mesDaTela, salvarMes } from '../estado.js';
+import { ligarNavMes, navMes } from '../mes-nav.js';
 import { categoriaPorId, confirmar, linhaLancamento, modal, ocupado, toast } from '../ui.js';
 import { ddmm, esc, mascaraValor, mesCurto, mesValido, money, nomeMes, parseBRL, somarMeses } from '../utils.js';
 
@@ -79,7 +81,8 @@ export async function render(el, ctx) {
   }
 
   const sel = cartoes.find((c) => c.id === ctx.params.get('id')) || cartoes[0];
-  const mesFatura = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : sel.fatura_mes;
+  // A fatura que vence no mês escolhido (o mesmo mês das abas Início e Lançamentos)
+  const mesFatura = mesDaTela(ctx.params);
   // Fatura do cartão escolhido e as dos outros cartões no mesmo mês (para o total), tudo de uma vez
   const [cats, ...faturasMes] = await Promise.all([
     api.categorias(),
@@ -142,11 +145,7 @@ export async function render(el, ctx) {
           <p class="muted small">Fecha todo dia ${sel.dia_fechamento} · vence todo dia ${sel.dia_vencimento}</p>
         </section>
 
-        <div class="month-nav">
-          <a href="${link(somarMeses(fatura.mes, -1))}" class="icon-btn" aria-label="Fatura anterior">${icon('esquerda', 20, 2.2)}</a>
-          <span class="strong">Fatura de ${nomeMes(fatura.mes)}</span>
-          <a href="${link(somarMeses(fatura.mes, 1))}" class="icon-btn" aria-label="Próxima fatura">${icon('direita', 20, 2.2)}</a>
-        </div>
+        ${navMes({ mes: fatura.mes, link, rotulo: `Fatura de ${nomeMes(fatura.mes)}`, rotuloAnterior: 'Fatura anterior', rotuloProximo: 'Próxima fatura' })}
 
         <section class="card">
           <div class="card-head">
@@ -195,6 +194,8 @@ export async function render(el, ctx) {
     } catch (e) { toast(e.message, 'erro'); }
   });
   el.querySelector('#ct-ajustar').addEventListener('click', () => ajustarFatura(sel, fatura, ctx));
+  salvarMes(fatura.mes);
+  ligarNavMes(el, { mes: fatura.mes, link, ir: ctx.ir, visao: 'caixa' });
   ligarQuadro(el.querySelector('#ct-categorias'), {
     itens: fatura.por_categoria || [], cat,
     aoEscolher: (categoriaId) => {
