@@ -1,19 +1,52 @@
 import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
-import { categoriaPorId, linhaLancamento } from '../ui.js';
-import { brl, groupBy, mesAtual, mesValido, money, nomeMes, rotuloDia, somarMeses } from '../utils.js';
+import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
+import { categoriaPorId, linhaLancamento, toast } from '../ui.js';
+import { brl, ddmm, esc, groupBy, mesAtual, mesValido, money, nomeMes, rotuloDia, somarMeses } from '../utils.js';
 
 const filtro = { tipo: '', busca: '' };
+
+/** Resultado das metas nos períodos do mês (ex.: as semanas de novembro). */
+function quadroMetas(r) {
+  if (!r?.metas?.length) {
+    return `<article class="card span-2" id="lc-metas"><h2 class="card-title">Metas do mês</h2>
+      <p class="muted small">Você ainda não tem metas. Defina uma no Início (ex.: R$ 600 por semana com comida) para acompanhar aqui como foi cada período.</p>
+      <a class="btn btn-ghost" href="#/inicio">Ir para o Início</a></article>`;
+  }
+  return `
+    <article class="card span-2" id="lc-metas">
+      <h2 class="card-title">Metas do mês</h2>
+      ${r.metas.map((m) => `
+        <div class="lc-meta">
+          <div class="lc-meta-topo"><strong>${esc(m.nome)}</strong>
+            <span class="muted small">${money(m.valor)} por ${esc(m.nome_periodo)} · no mês ${money(m.total_mes)}</span></div>
+          ${m.periodos.map((p, i) => {
+            const pctUso = m.valor ? (p.gasto / m.valor) * 100 : 0;
+            const cor = pctUso > 100 ? 'var(--neg)' : pctUso > 80 ? 'var(--warn)' : 'var(--accent)';
+            const rotulo = m.periodo === 'mes' ? nomeMes(p.inicio.slice(0, 7)) : `${{ semana: 'Semana', quinzena: 'Quinzena' }[m.nome_periodo] || 'Período'} ${i + 1}`;
+            return `
+            <div class="lc-periodo ${p.futuro ? 'futuro' : ''}">
+              <span class="lc-periodo-nome">${rotulo} <span class="muted small">${ddmm(p.inicio)}–${ddmm(p.fim)}</span>
+                ${p.em_andamento ? '<span class="badge">em andamento</span>' : ''}</span>
+              <span class="bar"><span style="width:${Math.min(100, pctUso)}%;background:${cor}"></span></span>
+              <span class="${pctUso > 100 ? 'neg' : ''} strong">${p.futuro ? '—' : money(p.gasto)}</span>
+            </div>`;
+          }).join('')}
+        </div>`).join('')}
+    </article>`;
+}
 
 export async function render(el, ctx) {
   const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
   if (ctx.params.has('busca')) filtro.busca = ctx.params.get('busca');   // vindo da busca do topo
   // Busca do topo sem mês escolhido: procura em todos os meses
   const todosMeses = !!ctx.params.get('busca') && !mesValido(ctx.params.get('mes'));
-  const [txs, cats, cartoes, recs] = await Promise.all([
+  const [txs, cats, cartoes, recs, resumo, metasMes] = await Promise.all([
     todosMeses ? api.todosLancamentos() : api.lancamentos(mes),
     api.categorias(), api.cartoes().catch(() => []), api.recorrencias().catch(() => []),
+    todosMeses ? null : api.resumo(mes, 'competencia').catch(() => null),
+    todosMeses ? null : api.metasDoMes(mes).catch(() => null),
   ]);
   if (!ctx.atual()) return;
 
@@ -49,6 +82,13 @@ export async function render(el, ctx) {
       <div class="info"><span class="muted small">Saldo</span><strong class="${receitas - despesas < 0 ? 'neg' : ''}">${money(receitas - despesas)}</strong></div>
     </section>`}
 
+    ${todosMeses ? '' : `
+    <section class="grid-3 lc-paineis">
+      ${resumo ? quadroCategorias({ id: 'lc-categorias', titulo: 'Gastos por categoria', itens: resumo.por_categoria, total: resumo.despesas, cat,
+        dica: resumo.por_categoria.length ? 'Pela data da compra. Toque numa categoria para ver os lançamentos.' : '' }) : ''}
+      ${quadroMetas(metasMes)}
+    </section>`}
+
     <div class="filtros-linha">
       <div class="seg" id="lc-tipo">
         <button type="button" data-v="">Todos</button>
@@ -61,6 +101,19 @@ export async function render(el, ctx) {
     <section class="card lista-card" id="lc-lista"></section>`;
 
   const lista = el.querySelector('#lc-lista');
+  if (resumo) {
+    ligarQuadro(el.querySelector('#lc-categorias'), {
+      itens: resumo.por_categoria, cat,
+      aoEscolher: async (categoriaId) => {
+        try {
+          const d = await api.lancamentosDaCategoria(mes, 'competencia', categoriaId);
+          abrirCategoria({ categoria: cat(categoriaId), periodo: nomeMes(mes), total: d.total, lancamentos: d.lancamentos,
+            ajuste: d.ajuste_valor_oficial, cat, cats, cartoes, depois: ctx.recarregar });
+        } catch (e) { toast(e.message, 'erro'); }
+      },
+    });
+  }
+  if (ctx.params.get('ver') === 'metas') el.querySelector('#lc-metas')?.scrollIntoView({ block: 'start' });
 
   function desenhar() {
     el.querySelectorAll('#lc-tipo button').forEach((b) => b.classList.toggle('on', b.dataset.v === filtro.tipo));
