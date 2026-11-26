@@ -753,3 +753,6 @@ select.input option { background: #111916; color: var(--text); }
 .passos ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .passo-print { display: block; width: 100%; max-width: 280px; height: auto; margin-top: 10px; border-radius: 14px; border: 1px solid var(--line); }
 .rv-faturas { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(110, 224, 161, .05); }
+.rv-fatura { display: flex; flex-direction: column; gap: 6px; }
+.rv-fatura-campos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+@media (max-width: 520px) { .rv-fatura-campos { grid-template-columns: minmax(0, 1fr); } }
