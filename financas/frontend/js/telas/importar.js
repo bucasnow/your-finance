@@ -182,6 +182,7 @@ export async function render(el, ctx) {
               <span class="tx-desc">${esc(i.descricao)}</span>
               <span class="tx-meta">${ddmm(i.data)}/${i.data.slice(2, 4)}${i.total_parcelas ? ` · parcela ${i.parcela_atual}/${i.total_parcelas}${i.parcelas_futuras ? ` (+${i.parcelas_futuras} futura${i.parcelas_futuras > 1 ? 's' : ''})` : ''}` : ''}${i.tipo === 'receita' ? ' · estorno/crédito' : ''}</span>
               ${i.duplicado ? `<span class="badge">${i.motivo_duplicado === 'repetido' ? 'Repetido em outro arquivo' : 'Já está no app'}</span>` : ''}
+              ${i.atualiza_parcela ? '<span class="badge pos">Corrige o valor da parcela prevista</span>' : ''}
             </span>
             <span class="tx-val ${i.tipo === 'receita' ? 'pos' : ''}">${i.tipo === 'receita' ? '+' : '−'} R$ ${brl(i.valor)}</span>
             <select class="input rv-cat" aria-label="Categoria de ${esc(i.descricao)}">
@@ -262,7 +263,8 @@ export async function render(el, ctx) {
       try {
         const r = await api.confirmarImportacao({ itens: escolhidos });
         toast(`${r.importados} lançamento${r.importados === 1 ? '' : 's'} importado${r.importados === 1 ? '' : 's'}`
-          + (r.duplicados ? ` · ${r.duplicados} repetido${r.duplicados === 1 ? '' : 's'} ignorado${r.duplicados === 1 ? '' : 's'}` : ''));
+          + (r.duplicados ? ` · ${r.duplicados} repetido${r.duplicados === 1 ? '' : 's'} ignorado${r.duplicados === 1 ? '' : 's'}` : '')
+          + (r.parcelas_corrigidas ? ` · ${r.parcelas_corrigidas} parcela${r.parcelas_corrigidas === 1 ? '' : 's'} prevista${r.parcelas_corrigidas === 1 ? '' : 's'} corrigida${r.parcelas_corrigidas === 1 ? '' : 's'}` : ''));
         const comFatura = escolhidos.filter((i) => i.cartao_id && i.fatura_mes).sort((a, b) => a.fatura_mes.localeCompare(b.fatura_mes));
         if (comFatura.length) {
           const ultima = comFatura.at(-1);
