@@ -12,20 +12,22 @@ const TELAS_APP = {
   '#/cartoes': () => import('./telas/cartoes.js'),
   '#/investimentos': () => import('./telas/investimentos.js'),
   '#/conta': () => import('./telas/conta.js'),
+  '#/objetivos': () => import('./telas/objetivos.js'),
 };
 
 const TELAS_ENTRADA = ['#/entrar', '#/cadastro', '#/esqueci', '#/redefinir', '#/2fa'];
 
 const MENU = [
   { hash: '#/inicio', nome: 'Início', ic: 'inicio' },
-  { hash: '#/lancamentos', nome: 'Lançamentos', ic: 'lista' },
+  { hash: '#/lancamentos', nome: 'Lançamentos', curto: 'Lançam.', ic: 'lista' },
   { hash: '#/cartoes', nome: 'Cartões', ic: 'cartao' },
-  { hash: '#/investimentos', nome: 'Investimentos', ic: 'investimento' },
+  { hash: '#/investimentos', nome: 'Investimentos', curto: 'Investir', ic: 'investimento' },
+  { hash: '#/objetivos', nome: 'Objetivos', ic: 'estrela' },
 ];
 
 const TITULOS = {
   '#/inicio': 'Início', '#/lancamentos': 'Lançamentos', '#/novo': 'Novo lançamento', '#/importar': 'Importar fatura',
-  '#/cartoes': 'Cartões', '#/investimentos': 'Investimentos', '#/conta': 'Minha conta',
+  '#/cartoes': 'Cartões', '#/investimentos': 'Investimentos', '#/objetivos': 'Objetivos', '#/conta': 'Minha conta',
 };
 
 const iniciais = (nome) => (nome || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
@@ -100,7 +102,7 @@ function montarShell() {
     <nav class="bottom-nav" aria-label="Navegação">
       <span class="nav-indicador" aria-hidden="true"></span>
       ${[...MENU, { hash: '#/conta', nome: 'Conta', ic: 'usuario' }].map((n) => `
-        <a href="${n.hash}" class="nav-btm" data-hash="${n.hash}">${icon(n.ic, 22)}<span>${n.nome}</span></a>`).join('')}
+        <a href="${n.hash}" class="nav-btm" data-hash="${n.hash}" aria-label="${n.nome}">${icon(n.ic, 22)}<span>${n.curto || n.nome}</span></a>`).join('')}
     </nav>`;
 
   const busca = app.querySelector('#busca-global');
@@ -246,7 +248,7 @@ document.addEventListener('fin:entrou', () => {
 });
 
 // Chegaram dados mais novos do que os mostrados: redesenha de leve, se a pessoa não estiver digitando
-const TELAS_SO_LEITURA = ['#/inicio', '#/lancamentos', '#/cartoes', '#/investimentos', '#/conta'];
+const TELAS_SO_LEITURA = ['#/inicio', '#/lancamentos', '#/cartoes', '#/investimentos', '#/objetivos', '#/conta'];
 let redesenho = null;
 document.addEventListener('fin:dados-novos', () => {
   clearTimeout(redesenho);

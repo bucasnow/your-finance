@@ -160,6 +160,13 @@ export const api = {
   alterarRecorrencia: (id, dados) => req('PUT', `/recorrencias/${id}`, dados),
 
   metas: () => req('GET', '/metas'),
+  aportarInvestimento: (id, valor) => req('POST', `/investimentos/${id}/aporte`, { valor }),
+  objetivos: () => req('GET', '/objetivos'),
+  criarObjetivo: (dados) => req('POST', '/objetivos', dados),
+  editarObjetivo: (id, dados) => req('PUT', `/objetivos/${id}`, dados),
+  excluirObjetivo: (id) => req('DELETE', `/objetivos/${id}`),
+  movimentarObjetivo: (id, valor, data) => req('POST', `/objetivos/${id}/movimentos`, { valor, data }),
+  desfazerMovimentoObjetivo: (id, movId) => req('DELETE', `/objetivos/${id}/movimentos/${movId}`),
   gastosDaMeta: (id, inicio) => req('GET', `/metas/${id}/lancamentos${inicio ? `?inicio=${inicio}` : ''}`),
   metasDoMes: (mes) => req('GET', `/metas/mes?mes=${mes}`),
   criarMeta: (dados) => req('POST', '/metas', dados),
