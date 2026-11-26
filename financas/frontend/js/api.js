@@ -142,7 +142,8 @@ export const api = {
   // Dados
   lancamentosDaCategoria: (mes, visao, categoriaId) => req('GET', `/resumo/categoria?mes=${mes}&visao=${visao}&categoria_id=${categoriaId || 'sem'}`),
   resumo: (mes, visao = 'caixa') => req('GET', `/resumo?mes=${mes}${visao === 'competencia' ? '&visao=competencia' : ''}`),
-  lancamentos: (mes) => req('GET', `/transacoes?mes=${mes}`),
+  lancamentos: (mes, visao = 'competencia') => req('GET', `/transacoes?mes=${mes}${visao === 'caixa' ? '&visao=caixa' : ''}`),
+  mesesComLancamentos: () => req('GET', '/transacoes/meses'),
   chaveSms: () => req('GET', '/sms/chave'),
   gerarChaveSms: () => req('POST', '/sms/chave'),
   apagarChaveSms: () => req('DELETE', '/sms/chave'),
@@ -159,6 +160,7 @@ export const api = {
   alterarRecorrencia: (id, dados) => req('PUT', `/recorrencias/${id}`, dados),
 
   metas: () => req('GET', '/metas'),
+  gastosDaMeta: (id, inicio) => req('GET', `/metas/${id}/lancamentos${inicio ? `?inicio=${inicio}` : ''}`),
   metasDoMes: (mes) => req('GET', `/metas/mes?mes=${mes}`),
   criarMeta: (dados) => req('POST', '/metas', dados),
   editarMeta: (id, dados) => req('PUT', `/metas/${id}`, dados),

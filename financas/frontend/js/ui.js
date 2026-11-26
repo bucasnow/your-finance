@@ -51,7 +51,9 @@ export function linhaLancamento(t, cat, { cartoes, recorrencias } = {}) {
   const recorrente = t.recorrencia_id ? ` · ${rec?.frequencia === 'anual' ? 'Anual' : rec ? 'Mensal' : 'Recorrente'}` : '';
   const cartao = t.cartao_id && cartoes ? cartoes.get(t.cartao_id) : null;
   const forma = cartao ? esc(cartao.nome) : FORMAS[t.forma_pagamento] || '';
-  const movido = t.fatura_mes ? ` · fatura de ${mesCurto(t.fatura_mes)}` : '';
+  // Compra no cartão que é paga em outro mês (visão caixa) ou movida para outra fatura
+  const daFatura = t.fatura_mes || (t.mes_fatura && t.mes_fatura !== String(t.data).slice(0, 7) ? t.mes_fatura : null);
+  const movido = daFatura ? ` · fatura de ${mesCurto(daFatura)}` : '';
   return `
     <button type="button" class="tx-row" data-tx="${t.id}">
       ${catIcon(cat)}

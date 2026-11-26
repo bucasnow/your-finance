@@ -1,6 +1,8 @@
 import { api, sessao } from '../api.js';
 import { comparativoChart } from '../charts.js';
-import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
+import { abrirCategoria, abrirGastosMeta, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
+import { mesDaTela, salvarVisao, visaoAtual } from '../estado.js';
+import { ligarNavMes, navMes } from '../mes-nav.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
 import { abrirMeta, nomePeriodo } from './meta.js';
@@ -32,14 +34,6 @@ function proximaFatura(cartoes) {
   return `A fatura do ${esc(prox.nome)} ${quando} (${money(prox.fatura_atual)}).`;
 }
 
-// Caixa: compra no cartão conta no mês em que a fatura vence. Competência: no mês da compra.
-const CHAVE_VISAO = 'fin.visao';
-function visaoEscolhida(params) {
-  const v = params.get('visao');
-  if (v === 'caixa' || v === 'competencia') return v;
-  try { return localStorage.getItem(CHAVE_VISAO) === 'competencia' ? 'competencia' : 'caixa'; } catch { return 'caixa'; }
-}
-
 const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 /** Cartão de uma meta: quanto já foi no período atual. O histórico fica na aba Lançamentos. */
@@ -51,7 +45,7 @@ function cardMeta(m) {
     ? `Faltam ${m.dias_restantes} dia${m.dias_restantes > 1 ? 's' : ''} ${fem ? 'nesta' : 'neste'} ${periodo} · dá uns ${money(m.restante / (m.dias_restantes + 1))} por dia, contando hoje`
     : m.dias_restantes > 0 ? `Faltam ${m.dias_restantes} dia${m.dias_restantes > 1 ? 's' : ''} ${fem ? 'nesta' : 'neste'} ${periodo}` : `Último dia ${fem ? 'da' : 'do'} ${periodo}`;
   return `
-    <section class="card meta-card">
+    <section class="card meta-card meta-clicavel" data-meta-abrir="${m.id}" tabindex="0" role="button" aria-label="Ver os gastos da meta ${esc(m.nome)}">
       <div class="card-head">
         <div><h2 class="card-title">${esc(m.nome)}</h2>
           <span class="muted small">${fem ? 'Nesta' : 'Neste'} ${periodo} · ${ddmm(m.periodo_inicio)} a ${ddmm(m.periodo_fim)}</span></div>
@@ -74,7 +68,8 @@ function cardMeta(m) {
             <span class="small muted">${d}</span></div>`;
         }).join('')}
       </div>` : ''}
-      <a class="small link" href="#/lancamentos?mes=${m.periodo_inicio.slice(0, 7)}&ver=metas">Ver períodos anteriores em Lançamentos</a>
+      <div class="meta-rodape small"><span class="muted">Toque para ver os gastos deste período</span>
+        <a class="link" href="#/lancamentos?mes=${m.periodo_inicio.slice(0, 7)}&ver=metas">Períodos anteriores</a></div>
     </section>`;
 }
 
@@ -111,10 +106,9 @@ function menuMeta(botao, meta, cats, ctx) {
 }
 
 export async function render(el, ctx) {
-  const mes = mesValido(ctx.params.get('mes')) ? ctx.params.get('mes') : mesAtual();
-  const visao = visaoEscolhida(ctx.params);
+  const mes = mesDaTela(ctx.params);       // o mesmo mês nas abas Início, Lançamentos e Cartões
+  const visao = visaoAtual(ctx.params);    // caixa (padrão) ou competência, para o site inteiro
   const competencia = visao === 'competencia';
-  const daVisao = competencia ? '&visao=competencia' : '';
 
   const [r, cats, cartoes, metas] = await Promise.all([
     api.resumo(mes, visao),
@@ -169,11 +163,7 @@ export async function render(el, ctx) {
       </div>
     </section>` : ''}
 
-    <div class="month-nav">
-      <a href="#/inicio?mes=${somarMeses(mes, -1)}${daVisao}" class="icon-btn" aria-label="Mês anterior">${icon('esquerda', 20, 2.2)}</a>
-      <span class="strong">${nomeMes(mes)}</span>
-      ${ehAtual ? '<span class="icon-btn" aria-hidden="true"></span>' : `<a href="#/inicio?mes=${somarMeses(mes, 1)}${daVisao}" class="icon-btn" aria-label="Próximo mês">${icon('direita', 20, 2.2)}</a>`}
-    </div>
+    ${navMes({ mes, link: (m) => `#/inicio?mes=${m}` })}
 
     <div class="visao-linha">
       <div class="seg seg-visao" id="in-visao" role="radiogroup" aria-label="Como contar os gastos do cartão">
@@ -274,6 +264,18 @@ export async function render(el, ctx) {
   });
 
   el.querySelector('[data-meta-nova]')?.addEventListener('click', () => abrirMeta(null, cats, ctx.recarregar));
+  ligarNavMes(el, { mes, link: (m) => `#/inicio?mes=${m}`, ir: ctx.ir, visao });
+  // Tocar na meta abre os gastos do período atual (o ⋯ e o link têm ação própria)
+  const abrirMetaGastos = async (card) => {
+    try {
+      const g = await api.gastosDaMeta(card.dataset.metaAbrir);
+      abrirGastosMeta({ g, cat, cats, cartoes, depois: ctx.recarregar });
+    } catch (ex) { toast(ex.message, 'erro'); }
+  };
+  el.querySelectorAll('[data-meta-abrir]').forEach((card) => {
+    card.addEventListener('click', (e) => { if (!e.target.closest('[data-meta-menu], a')) abrirMetaGastos(card); });
+    card.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); abrirMetaGastos(card); } });
+  });
   el.querySelectorAll('[data-meta-menu]').forEach((b) => b.addEventListener('click', () => {
     menuMeta(b, metas.find((m) => m.id === b.dataset.metaMenu), cats, ctx);
   }));
@@ -281,8 +283,8 @@ export async function render(el, ctx) {
   el.querySelector('#in-visao').addEventListener('click', (e) => {
     const v = e.target.closest('[data-v]')?.dataset.v;
     if (!v || v === visao) return;
-    try { localStorage.setItem(CHAVE_VISAO, v); } catch { /* modo privado */ }
-    ctx.ir(`#/inicio?mes=${mes}${v === 'competencia' ? '&visao=competencia' : '&visao=caixa'}`);
+    salvarVisao(v);
+    ctx.recarregar();
   });
 
   el.querySelector('#recentes').addEventListener('click', (e) => {

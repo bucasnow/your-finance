@@ -788,3 +788,25 @@ select.input option { background: #111916; color: var(--text); }
 .lc-periodo-nome { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 520px) { .lc-periodo { grid-template-columns: minmax(0, 1fr) auto; } .lc-periodo .bar { grid-column: 1 / -1; grid-row: 2; } }
 .rv-novo-cartao { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* Navegação de mês: seletor e "Hoje" */
+.nav-mes-centro { display: flex; align-items: center; gap: 8px; }
+.mes-botao { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; color: var(--text); }
+.mes-botao svg { transform: rotate(90deg); color: var(--muted); }
+.mes-botao:hover, .mes-botao:focus-visible { background: rgba(225, 255, 238, .07); }
+.mes-hoje { font-size: 12px; padding: 4px 10px; }
+.seletor-mes {
+  position: absolute; z-index: 300; padding: 12px; border-radius: 18px; border: 1px solid var(--line);
+  background: rgba(14, 22, 18, .97); box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .85); display: flex; flex-direction: column; gap: 10px;
+  -webkit-backdrop-filter: var(--vidro); backdrop-filter: var(--vidro);
+}
+.seletor-ano { display: flex; align-items: center; justify-content: space-between; }
+.seletor-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.seletor-grade button { position: relative; padding: 10px 0; border-radius: 10px; color: var(--text); font-weight: 600; font-size: 13px; }
+.seletor-grade button:hover, .seletor-grade button:focus-visible { background: rgba(225, 255, 238, .07); }
+.seletor-grade button.hoje { box-shadow: inset 0 0 0 1px var(--line); }
+.seletor-grade button.on { background: var(--accent); color: var(--tinta-menta); }
+.seletor-grade .ponto { position: absolute; bottom: 4px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.seletor-grade button.on .ponto { background: var(--tinta-menta); }
+.seletor-hoje { align-self: stretch; }
+.donut-wrap canvas { max-width: 100%; max-height: 100%; }

@@ -74,3 +74,43 @@ export function abrirCategoria({ categoria, periodo, total, lancamentos, ajuste,
     abrirEdicao(t, cats, depois, { faturaMes });
   });
 }
+
+const DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+/** Janela com os gastos que formam uma meta num período: total, barra e lançamentos por dia. */
+export function abrirGastosMeta({ g, cat, cats, cartoes, depois }) {
+  const mapaCartoes = cartoes ? new Map(cartoes.map((c) => [c.id, c])) : undefined;
+  const pctUso = g.valor ? (g.total / g.valor) * 100 : 0;
+  const cor = pctUso > 100 ? 'var(--neg)' : pctUso > 80 ? 'var(--warn)' : 'var(--accent)';
+  const porDia = new Map();
+  for (const t of g.lancamentos) {
+    if (!porDia.has(t.data)) porDia.set(t.data, []);
+    porDia.get(t.data).push(t);
+  }
+  const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const { el, fechar } = modal(`${g.nome} · ${ddmm(g.inicio)} a ${ddmm(g.fim)}`, `
+    <div class="form-col">
+      <div class="meta-topo">
+        <div><span class="hero-val ${g.restante < 0 ? 'neg' : ''}" style="font-size:28px">${money(g.total)}</span>
+          <span class="muted"> de ${money(g.valor)}</span></div>
+        <span class="badge ${g.restante < 0 ? 'neg' : 'pos'}">${g.restante < 0 ? `Passou ${money(-g.restante)}` : `Sobrou ${money(g.restante)}`}</span>
+      </div>
+      <div class="bar thick"><span style="width:${Math.min(100, pctUso)}%;background:${cor}"></span></div>
+      <p class="muted small">Conta a data da compra (não a da fatura), só nas categorias da meta.</p>
+      <div class="lista-card cat-lista">
+        ${porDia.size ? [...porDia.entries()].map(([dia, ts]) => {
+          const d = new Date(`${dia}T12:00:00`);
+          return `<div class="day-head"><span>${DIA_SEMANA[d.getDay()]} ${ddmm(dia)}</span><span>${money(ts.reduce((s, t) => s + t.valor, 0))}</span></div>
+            ${ts.map((t) => linhaLancamento(t, cat(t.categoria_id), { cartoes: mapaCartoes })).join('')}`;
+        }).join('') : '<div class="empty">Nenhum gasto nas categorias da meta neste período.</div>'}
+      </div>
+      ${g.lancamentos.length ? '<p class="muted small">Toque num lançamento para editar ou mudar a categoria.</p>' : ''}
+    </div>`);
+  el.querySelector('.cat-lista').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tx]');
+    const t = b && g.lancamentos.find((x) => x.id === b.dataset.tx);
+    if (!t) return;
+    fechar();
+    abrirEdicao(t, cats, depois);
+  });
+}
