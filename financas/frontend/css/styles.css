@@ -787,3 +787,4 @@ select.input option { background: #111916; color: var(--text); }
 .lc-periodo.futuro { opacity: .45; }
 .lc-periodo-nome { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 520px) { .lc-periodo { grid-template-columns: minmax(0, 1fr) auto; } .lc-periodo .bar { grid-column: 1 / -1; grid-row: 2; } }
+.rv-novo-cartao { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { icon } from '../icons.js';
-import { catIcon, categoriaPorId, ocupado, toast } from '../ui.js';
+import { catIcon, categoriaPorId, modal, ocupado, toast } from '../ui.js';
 import { brl, ddmm, esc, mesAtual, money, nomeMes, somarMeses } from '../utils.js';
 
 const MAX_ARQUIVOS = 12;
@@ -164,7 +164,11 @@ export async function render(el, ctx) {
                 <select class="input" data-cartao-arquivo="${esc(a.nome)}" aria-label="Cartão">${opcoesCartao(cartaoPorArquivo.get(a.nome))}</select>
                 <select class="input" data-fatura-arquivo="${esc(a.nome)}" aria-label="Fatura" ${cartaoPorArquivo.get(a.nome) ? '' : 'hidden'}>${opcoesFatura(faturaPorArquivo.get(a.nome))}</select>
               </div>
-              ${a.final && !a.cartao_id ? `<span class="muted small">Nenhum cartão cadastrado com final ${esc(a.final)}. Escolha um ou cadastre em Cartões.</span>` : ''}
+              ${a.final && !a.cartao_id ? `
+              <div class="rv-novo-cartao" data-final-aviso="${esc(a.final)}">
+                <span class="muted small">Nenhum cartão cadastrado com final ${esc(a.final)}.</span>
+                ${a.sugestao_cartao ? `<button type="button" class="btn btn-ghost btn-compacto" data-criar-cartao="${esc(a.nome)}">${icon('mais', 16, 2.4)}Criar cartão final ${esc(a.final)}</button>` : ''}
+              </div>` : ''}
             </div>`).join('')}
           <p class="muted small">Tudo o que veio na fatura entra nela, mesmo as compras com data do mês anterior. As parcelas seguintes vão para as próximas faturas, sem repetir as que já vieram em outra fatura.</p>
         </div>` : ''}
@@ -242,6 +246,44 @@ export async function render(el, ctx) {
     });
     box.querySelectorAll('[data-fatura-arquivo]').forEach((sel) => sel.addEventListener('change', () => {
       faturaPorArquivo.set(sel.dataset.faturaArquivo, sel.value);
+    }));
+    // Cria o cartão com o que a fatura traz (nome, final, fechamento, vencimento); as faturas com o
+    // mesmo final passam a usar esse cartão
+    box.querySelectorAll('[data-criar-cartao]').forEach((b) => b.addEventListener('click', () => {
+      const arq = lidosOk.find((a) => a.nome === b.dataset.criarCartao);
+      const sug = arq.sugestao_cartao;
+      const { el: m, fechar } = modal(`Criar cartão final ${sug.final}`, `
+        <form novalidate class="form-col">
+          <p class="muted small">Preenchido com o que está na fatura. Confira os dias: o site usa para saber em qual fatura cai cada compra.</p>
+          <label class="field"><span class="field-label">Nome</span><input class="input" id="nc-nome" maxlength="40" value="${esc(sug.nome)}"></label>
+          <div class="dois">
+            <label class="field"><span class="field-label">Fecha no dia</span><input class="input" id="nc-fech" type="number" min="1" max="31" value="${sug.dia_fechamento || ''}"></label>
+            <label class="field"><span class="field-label">Vence no dia</span><input class="input" id="nc-venc" type="number" min="1" max="31" value="${sug.dia_vencimento || ''}"></label>
+          </div>
+          <div class="form-error" role="alert"></div>
+          <button class="btn btn-primary btn-block" type="submit">${icon('check', 18, 2.6)}Criar cartão</button>
+        </form>`);
+      m.querySelector('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dados = { nome: m.querySelector('#nc-nome').value.trim() || sug.nome, final: sug.final, limite: 0,
+          dia_fechamento: Number(m.querySelector('#nc-fech').value), dia_vencimento: Number(m.querySelector('#nc-venc').value) };
+        const erroNc = m.querySelector('.form-error');
+        if (!(dados.dia_fechamento >= 1 && dados.dia_fechamento <= 31 && dados.dia_vencimento >= 1 && dados.dia_vencimento <= 31)) {
+          erroNc.textContent = 'Informe os dias de fechamento e vencimento (1 a 31).'; return;
+        }
+        const btn = e.submitter; ocupado(btn, true, 'Criando…');
+        try {
+          const novo = await api.criarCartao(dados);
+          cartoes.push(novo);
+          for (const a of lidosOk.filter((x) => x.final === sug.final)) cartaoPorArquivo.set(a.nome, novo.id);
+          box.querySelectorAll('[data-cartao-arquivo]').forEach((sel) => {
+            sel.innerHTML = opcoesCartao(cartaoPorArquivo.get(sel.dataset.cartaoArquivo));
+            box.querySelector(`[data-fatura-arquivo="${CSS.escape(sel.dataset.cartaoArquivo)}"]`).hidden = !sel.value;
+          });
+          box.querySelectorAll(`[data-final-aviso="${CSS.escape(sug.final)}"]`).forEach((x) => x.remove());
+          fechar(); toast(`Cartão ${novo.nome} criado`);
+        } catch (ex) { erroNc.textContent = ex.message; ocupado(btn, false); }
+      });
     }));
     box.querySelectorAll('[data-cartao-arquivo]').forEach((sel) => sel.addEventListener('change', () => {
       const nome = sel.dataset.cartaoArquivo;
