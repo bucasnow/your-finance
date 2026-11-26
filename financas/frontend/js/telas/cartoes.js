@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
+import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
 import { categoriaPorId, confirmar, linhaLancamento, modal, ocupado, toast } from '../ui.js';
 import { ddmm, esc, mascaraValor, mesCurto, mesValido, money, nomeMes, parseBRL, somarMeses } from '../utils.js';
 
@@ -170,6 +171,10 @@ export async function render(el, ctx) {
           </div>
         </section>
 
+        ${quadroCategorias({ id: 'ct-categorias', titulo: `Gastos por categoria · fatura de ${nomeMes(fatura.mes).toLowerCase()}`,
+          itens: fatura.por_categoria || [], total: considerado(fatura), cat,
+          dica: (fatura.por_categoria || []).length ? 'Toque numa categoria para ver as compras dela nesta fatura.' : '' })}
+
         <section class="card lista-card" id="ct-compras">
           ${fatura.lancamentos.length
             ? fatura.lancamentos.map((t) => linhaLancamento(t, cat(t.categoria_id))).join('')
@@ -190,6 +195,19 @@ export async function render(el, ctx) {
     } catch (e) { toast(e.message, 'erro'); }
   });
   el.querySelector('#ct-ajustar').addEventListener('click', () => ajustarFatura(sel, fatura, ctx));
+  ligarQuadro(el.querySelector('#ct-categorias'), {
+    itens: fatura.por_categoria || [], cat,
+    aoEscolher: (categoriaId) => {
+      const g = (fatura.por_categoria || []).find((c) => (c.categoria_id || null) === categoriaId);
+      const ids = new Set(g?.ids || []);
+      abrirCategoria({
+        categoria: cat(categoriaId), periodo: `${sel.nome} · fatura de ${nomeMes(fatura.mes).toLowerCase()}`,
+        total: g?.total || 0, lancamentos: fatura.lancamentos.filter((t) => ids.has(t.id)),
+        ajuste: categoriaId === null ? fatura.ajuste_valor_oficial : null,
+        cat, cats, depois: ctx.recarregar, faturaMes: fatura.mes,
+      });
+    },
+  });
   el.querySelector('#ct-compras').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tx]');
     const t = b && fatura.lancamentos.find((x) => x.id === b.dataset.tx);
