@@ -140,6 +140,7 @@ export const api = {
   desativar2fa: (senha) => req('POST', '/auth/2fa/desativar', { senha }),
 
   // Dados
+  lancamentosDaCategoria: (mes, visao, categoriaId) => req('GET', `/resumo/categoria?mes=${mes}&visao=${visao}&categoria_id=${categoriaId || 'sem'}`),
   resumo: (mes, visao = 'caixa') => req('GET', `/resumo?mes=${mes}${visao === 'competencia' ? '&visao=competencia' : ''}`),
   lancamentos: (mes) => req('GET', `/transacoes?mes=${mes}`),
   chaveSms: () => req('GET', '/sms/chave'),

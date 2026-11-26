@@ -1,9 +1,10 @@
 import { api, sessao } from '../api.js';
-import { comparativoChart, donutChart } from '../charts.js';
+import { comparativoChart } from '../charts.js';
+import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
 import { abrirMeta } from './meta.js';
-import { catIcon, categoriaPorId, linhaLancamento } from '../ui.js';
+import { catIcon, categoriaPorId, linhaLancamento, toast } from '../ui.js';
 import { brl, compact, esc, mesAtual, mesCurto, mesValido, money, nomeMes, pct, somarMeses } from '../utils.js';
 
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -57,7 +58,6 @@ export async function render(el, ctx) {
   const mapaCartoes = new Map(cartoes.map((c) => [c.id, c]));
   const primeiroNome = (sessao.usuario?.nome || '').split(' ')[0];
   const ehAtual = mes === r.mes_atual;
-  const cats5 = r.por_categoria.slice(0, 5);
   const totalFaturas = cartoes.reduce((s, c) => s + c.fatura_atual, 0);
   // Primeiro acesso: conta sem nenhum lançamento ainda
   const contaVazia = !r.recentes.length && r.evolucao.every((e) => !e.receitas && !e.despesas);
@@ -189,17 +189,8 @@ export async function render(el, ctx) {
     </section>`}
 
     <section class="grid-3">
-      <article class="card">
-        <h2 class="card-title">Gastos por categoria</h2>
-        ${cats5.length ? `
-          <div class="donut-wrap" style="width:160px;height:160px">
-            <canvas id="ch-cat" role="img" aria-label="Gastos por categoria"></canvas>
-            <div class="donut-center"><span class="muted small">Total</span><strong>${compact(r.despesas)}</strong></div>
-          </div>
-          <div class="legend">
-            ${cats5.map((c) => { const k = cat(c.categoria_id); return `<div class="legend-row">${catIcon(k, 14)}<span class="name">${esc(k.nome)}</span><span class="muted">${pct((c.total / (r.despesas || 1)) * 100, 0)}%</span><span class="val">${compact(c.total)}</span></div>`; }).join('')}
-          </div>` : '<div class="empty">Nenhum gasto neste mês.</div>'}
-      </article>
+      ${quadroCategorias({ id: 'in-categorias', itens: r.por_categoria, total: r.despesas, cat,
+        dica: r.por_categoria.length ? 'Toque numa categoria para ver os lançamentos.' : '' })}
 
       <article class="card span-2">
         <h2 class="card-title">${nomeEntrada} x gastos por mês</h2>
@@ -218,13 +209,19 @@ export async function render(el, ctx) {
       </div>
     </section>`;
 
-  if (cats5.length) {
-    donutChart(el.querySelector('#ch-cat'), {
-      labels: cats5.map((c) => cat(c.categoria_id).nome),
-      values: cats5.map((c) => c.total),
-      colors: cats5.map((c) => cat(c.categoria_id).cor),
-    });
-  }
+  ligarQuadro(el.querySelector('#in-categorias'), {
+    itens: r.por_categoria, cat,
+    aoEscolher: async (categoriaId) => {
+      try {
+        const d = await api.lancamentosDaCategoria(mes, visao, categoriaId);
+        abrirCategoria({
+          categoria: cat(categoriaId), periodo: `${nomeMes(mes)}${competencia ? ' (compra)' : ''}`,
+          total: d.total, lancamentos: d.lancamentos, ajuste: d.ajuste_valor_oficial,
+          cat, cats, cartoes, depois: ctx.recarregar,
+        });
+      } catch (e) { toast(e.message, 'erro'); }
+    },
+  });
   comparativoChart(el.querySelector('#ch-bar'), {
     labels: r.evolucao.map((e) => mesCurto(e.mes)),
     series: [

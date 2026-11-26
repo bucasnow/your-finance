@@ -756,3 +756,12 @@ select.input option { background: #111916; color: var(--text); }
 .rv-fatura { display: flex; flex-direction: column; gap: 6px; }
 .rv-fatura-campos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 @media (max-width: 520px) { .rv-fatura-campos { grid-template-columns: minmax(0, 1fr); } }
+
+/* Gastos por categoria clicáveis (Início e Cartões) */
+.legend-botao { width: 100%; padding: 8px 10px; margin: 0 -10px; border-radius: 12px; text-align: left; color: inherit; transition: background .15s; box-sizing: content-box; }
+.legend-botao:hover, .legend-botao:focus-visible { background: rgba(225, 255, 238, .06); }
+.legend-botao svg { color: var(--muted); flex-shrink: 0; }
+.cat-gasto .legend { gap: 2px; }
+.cat-resumo { display: flex; align-items: center; gap: 10px; }
+.cat-resumo .cat-total { margin-left: auto; font-size: 20px; }
+.cat-lista { max-height: 60vh; overflow-y: auto; padding: 0; }
