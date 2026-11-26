@@ -742,3 +742,11 @@ select.input option { background: #111916; color: var(--text); }
 .seg-visao { flex: 0 0 auto; }
 .seg-visao button { padding: 7px 14px; }
 @media (max-width: 820px) { .seg-visao { flex: 1 1 100%; } }
+
+/* Compras por SMS */
+.sms-chave { display: flex; flex-direction: column; gap: 8px; }
+.copiavel { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(225, 255, 238, .035); }
+.copiavel code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.passos { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.passos strong { color: var(--text); }
+.passos code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: rgba(225, 255, 238, .08); color: var(--text); overflow-wrap: anywhere; }

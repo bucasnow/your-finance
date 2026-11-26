@@ -6,7 +6,7 @@ import { esc } from '../utils.js';
 const CORES_CATEGORIA = ['#F59E0B', '#84CC16', '#60A5FA', '#A78BFA', '#F87171', '#F472B6', '#38BDF8', '#FB923C', '#C084FC', '#34D399', '#2DD4BF', '#94A3B8'];
 
 export async function render(el, ctx) {
-  const [eu, cats] = await Promise.all([api.eu(), api.categorias()]);
+  const [eu, cats, sms] = await Promise.all([api.eu(), api.categorias(), api.chaveSms().catch(() => null)]);
   if (!ctx.atual()) return;
   sessao.atualizarUsuario(eu);
   const minhas = cats.filter((c) => c.propria);
@@ -36,6 +36,21 @@ export async function render(el, ctx) {
       </button>
     </section>
 
+    ${sms ? `
+    <section class="card">
+      <h2 class="card-title">Lançar automático</h2>
+      <button type="button" class="linha-opcao" id="ct-sms">
+        <span class="cat-icon" style="background:#6ee0a122;color:#6ee0a1">${icon('raio', 18)}</span>
+        <span class="tx-main">
+          <span class="tx-desc">Compras por SMS (iPhone)</span>
+          <span class="tx-meta">${sms.ativa
+            ? `Ativo${sms.ultimo_uso ? ` · último SMS ${new Date(sms.ultimo_uso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ' · aguardando o primeiro SMS'}`
+            : 'O SMS de compra do banco vira lançamento sozinho'}</span>
+        </span>
+        <span class="badge ${sms.ativa ? 'pos' : ''}">${sms.ativa ? 'Ativo' : 'Ativar'}</span>
+      </button>
+    </section>` : ''}
+
     <section class="card">
       <div class="card-head">
         <h2 class="card-title">Minhas categorias</h2>
@@ -52,6 +67,7 @@ export async function render(el, ctx) {
     <button type="button" class="btn btn-perigo-ghost btn-block" id="ct-sair">${icon('sair', 18)}Sair da conta</button>`;
 
   el.querySelector('#ct-senha').addEventListener('click', alterarSenha);
+  el.querySelector('#ct-sms')?.addEventListener('click', () => comprasPorSms(sms, ctx));
   el.querySelector('#ct-2fa').addEventListener('click', () => (eu.totp_ativo ? desativar2fa(ctx) : ativar2fa(ctx)));
   el.querySelector('#ct-nova-cat').addEventListener('click', () => novaCategoria(ctx));
   el.querySelectorAll('[data-excluir-cat]').forEach((b) => b.addEventListener('click', async () => {
@@ -63,6 +79,69 @@ export async function render(el, ctx) {
   el.querySelector('#ct-sair').addEventListener('click', () => {
     sessao.encerrar();
     document.dispatchEvent(new CustomEvent('fin:sair', { detail: 'Você saiu da conta.' }));
+  });
+}
+
+// ── Compras por SMS ──────────────────────────────────────────────────────────
+
+const PASSOS_ATALHO = (url) => `
+  <ol class="passos">
+    <li>Abra o app <strong>Atalhos</strong> › aba <strong>Automação</strong> › <strong>+</strong> › <strong>Mensagem</strong>.</li>
+    <li>Em <strong>Remetente</strong>, escolha o número que manda os SMS do banco. Em <strong>Mensagem contém</strong>, escreva <code>APROVADA</code>.</li>
+    <li>Marque <strong>Executar imediatamente</strong> (para não pedir confirmação) e toque em <strong>Seguinte</strong> › <strong>Nova automação em branco</strong>.</li>
+    <li>Adicione a ação <strong>Obter Conteúdo do URL</strong>. Em URL, cole: <code>${esc(url)}</code></li>
+    <li>Toque na seta da ação: <strong>Método</strong> = POST · em <strong>Cabeçalhos</strong>, adicione <code>Authorization</code> com o valor <code>Bearer</code> + espaço + sua chave · <strong>Corpo da Solicitação</strong> = JSON, com um campo de texto chamado <code>texto</code> cujo valor é a variável <strong>Entrada do Atalho</strong> (o conteúdo do SMS).</li>
+    <li>Pronto. Para testar, mande para você mesmo um SMS copiado do banco ou espere a próxima compra.</li>
+  </ol>`;
+
+function comprasPorSms(sms, ctx) {
+  const { el, fechar } = modal('Compras por SMS', `
+    <div class="form-col">
+      <p class="muted">Quando o banco manda o SMS de compra aprovada, um Atalho do iPhone repassa a mensagem para o fin.app, que lança a compra no cartão pelo final (ex.: 8245). O cartão precisa estar cadastrado com o final.</p>
+      <p class="muted small">Hoje reconhece: <strong>Bradesco</strong>. Para outro banco, mande um SMS de exemplo para incluirmos.</p>
+      <div id="sms-chave"></div>
+      ${sms.ativa ? `
+        <button type="button" class="btn btn-ghost btn-block" id="sms-passos">Ver o passo a passo do Atalho</button>
+        <button type="button" class="btn btn-ghost btn-block" id="sms-nova">Gerar nova chave</button>
+        <button type="button" class="btn btn-perigo-ghost btn-block" id="sms-apagar">Desativar</button>` : `
+        <button type="button" class="btn btn-primary btn-block" id="sms-gerar">${icon('raio', 18)}Gerar minha chave</button>`}
+    </div>`);
+  const area = el.querySelector('#sms-chave');
+
+  const mostrar = ({ chave, url }) => {
+    area.innerHTML = `
+      <div class="sms-chave">
+        <span class="field-label">Sua chave (aparece só agora — copie e guarde no Atalho)</span>
+        <div class="copiavel"><code id="sms-valor">${esc(chave)}</code><button type="button" class="btn btn-ghost btn-compacto" data-copiar="${esc(chave)}">Copiar</button></div>
+        <span class="field-label">Endereço</span>
+        <div class="copiavel"><code>${esc(url)}</code><button type="button" class="btn btn-ghost btn-compacto" data-copiar="${esc(url)}">Copiar</button></div>
+      </div>
+      ${PASSOS_ATALHO(url)}`;
+    el.querySelectorAll('#sms-gerar, #sms-nova, #sms-passos').forEach((b) => b.remove());
+  };
+  area.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-copiar]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copiar); toast('Copiado'); } catch { toast('Não deu para copiar; selecione e copie o texto', 'erro'); }
+  });
+  const gerar = async (btn) => {
+    ocupado(btn, true);
+    try { mostrar(await api.gerarChaveSms()); ctx.recarregar(); } catch (ex) { toast(ex.message, 'erro'); ocupado(btn, false); }
+  };
+  el.querySelector('#sms-gerar')?.addEventListener('click', (e) => gerar(e.currentTarget));
+  el.querySelector('#sms-nova')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const ok = await confirmar('Gerar nova chave', 'A chave atual para de funcionar. Você vai precisar colar a nova no Atalho.', [{ valor: true, rotulo: 'Gerar nova chave' }]);
+    if (ok) gerar(btn);
+  });
+  el.querySelector('#sms-passos')?.addEventListener('click', (e) => {
+    e.currentTarget.remove();
+    area.innerHTML = `<p class="muted small">Use a chave que você guardou ao ativar. Se perdeu, gere uma nova.</p>${PASSOS_ATALHO(sms.url)}`;
+  });
+  el.querySelector('#sms-apagar')?.addEventListener('click', async () => {
+    const ok = await confirmar('Desativar compras por SMS', 'A chave deixa de funcionar e o Atalho para de lançar. Os lançamentos já feitos continuam.', [{ valor: true, rotulo: 'Desativar', perigo: true }]);
+    if (!ok) return;
+    try { await api.apagarChaveSms(); fechar(); toast('Compras por SMS desativadas'); ctx.recarregar(); } catch (ex) { toast(ex.message, 'erro'); }
   });
 }
 

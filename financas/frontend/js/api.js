@@ -142,6 +142,9 @@ export const api = {
   // Dados
   resumo: (mes, visao = 'caixa') => req('GET', `/resumo?mes=${mes}${visao === 'competencia' ? '&visao=competencia' : ''}`),
   lancamentos: (mes) => req('GET', `/transacoes?mes=${mes}`),
+  chaveSms: () => req('GET', '/sms/chave'),
+  gerarChaveSms: () => req('POST', '/sms/chave'),
+  apagarChaveSms: () => req('DELETE', '/sms/chave'),
   todosLancamentos: () => req('GET', '/transacoes?limite=1000'),
   criarLancamento: (dados) => req('POST', '/transacoes', dados),
   editarLancamento: (id, dados) => req('PUT', `/transacoes/${id}`, dados),
