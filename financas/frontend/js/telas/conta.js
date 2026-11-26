@@ -84,14 +84,26 @@ export async function render(el, ctx) {
 
 // ── Compras por SMS ──────────────────────────────────────────────────────────
 
+// Passo a passo com prints reais do iPhone (iOS em inglês; em português entre parênteses)
+const print = (arquivo, alt) => `<img class="passo-print" src="img/sms/${arquivo}" alt="${alt}" loading="lazy" width="560">`;
 const PASSOS_ATALHO = (url) => `
   <ol class="passos">
-    <li>Abra o app <strong>Atalhos</strong> › aba <strong>Automação</strong> › <strong>+</strong> › <strong>Mensagem</strong>.</li>
-    <li>Em <strong>Remetente</strong>, escolha o número que manda os SMS do banco. Em <strong>Mensagem contém</strong>, escreva <code>APROVADA</code>.</li>
-    <li>Marque <strong>Executar imediatamente</strong> (para não pedir confirmação) e toque em <strong>Seguinte</strong> › <strong>Nova automação em branco</strong>.</li>
-    <li>Adicione a ação <strong>Obter Conteúdo do URL</strong>. Em URL, cole: <code>${esc(url)}</code></li>
-    <li>Toque na seta da ação: <strong>Método</strong> = POST · em <strong>Cabeçalhos</strong>, adicione <code>Authorization</code> com o valor <code>Bearer</code> + espaço + sua chave · <strong>Corpo da Solicitação</strong> = JSON, com um campo de texto chamado <code>texto</code> cujo valor é a variável <strong>Entrada do Atalho</strong> (o conteúdo do SMS).</li>
-    <li>Pronto. Para testar, mande para você mesmo um SMS copiado do banco ou espere a próxima compra.</li>
+    <li>No iPhone, abra o app <strong>Shortcuts</strong> (Atalhos) › aba <strong>Automation</strong> (Automação) › <strong>+</strong> › <strong>Message</strong> (Mensagem).</li>
+    <li>Em <strong>Sender</strong> (Remetente), escolha o contato que manda os SMS do Bradesco. Em <strong>Message Contains</strong> (Mensagem contém), escreva <code>APROVADA</code>. Marque <strong>Run Immediately</strong> (Executar imediatamente) e toque em <strong>Next</strong>.</li>
+    <li>Toque em <strong>Create New Shortcut</strong> (Criar novo atalho).
+      ${print('2-novo-atalho.webp', 'Tela com o botão Create New Shortcut')}</li>
+    <li>Em <strong>Search Actions</strong>, busque <strong>Get Text from Input</strong> (Obter texto da entrada) e toque nela. Ela deve mostrar <strong>Shortcut Input</strong> em azul.
+      ${print('3-get-text.webp', 'Ação Get text from Shortcut Input')}</li>
+    <li>Busque e adicione <strong>Get Contents of URL</strong> (Obter conteúdo do URL), <em>abaixo</em> da anterior. Toque em URL e cole <code>${esc(url)}</code>. Abra as opções (setinha) e preencha:
+      <ul>
+        <li><strong>Method</strong>: POST</li>
+        <li><strong>Headers</strong> › Add new header: <code>Authorization</code> = <code>Bearer</code> + espaço + sua chave</li>
+        <li><strong>Request Body</strong>: <strong>File</strong> (Arquivo) › Choose Variable › <strong>Text</strong></li>
+      </ul>
+      ${print('4-get-contents.webp', 'Ação Get contents of URL configurada, com a chave escondida')}</li>
+    <li>Toque no <strong>✓</strong> e em <strong>Done</strong>. A automação fica assim:
+      ${print('1-automacao.webp', 'Resumo da automação: Run Immediately, quando chegar mensagem com APROVADA do Bradesco')}</li>
+    <li>Pronto. O teste com o botão ▶ sempre responde "SMS ignorado" (roda sem SMS). Na próxima compra, confira aqui em Minha conta o horário do último SMS e a compra em Lançamentos.</li>
   </ol>`;
 
 function comprasPorSms(sms, ctx) {
