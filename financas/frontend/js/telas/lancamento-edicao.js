@@ -58,6 +58,12 @@ export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
           <option value="">Sem categoria</option>
           ${doTipo.map((c) => `<option value="${c.id}" ${c.id === t.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
         </select></label>
+      ${t.tipo === 'despesa' ? `
+      <label class="switch-linha" id="ed-todas-linha" hidden>
+        <span class="switch-texto"><span class="strong">Aplicar a todas as compras deste lugar</span>
+          <span class="muted small">Muda também as compras antigas deste estabelecimento. As próximas já vêm com esta categoria.</span></span>
+        <input type="checkbox" class="switch" id="ed-todas" role="switch" checked>
+      </label>` : ''}
       <label class="field"><span class="field-label">Data</span>
         <input class="input" id="ed-data" type="date" value="${t.data}"></label>
       ${campoFatura}
@@ -73,6 +79,10 @@ export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
     </form>`);
 
   const valor = el.querySelector('#ed-valor');
+  const linhaTodas = el.querySelector('#ed-todas-linha');
+  el.querySelector('#ed-cat').addEventListener('change', (e) => {
+    if (linhaTodas) linhaTodas.hidden = !e.target.value || e.target.value === (t.categoria_id || '');
+  });
   mascaraValor(valor, t.valor);
   const erro = el.querySelector('.form-error');
 
@@ -83,6 +93,7 @@ export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
       valor: parseBRL(valor.value),
       data: el.querySelector('#ed-data').value,
       categoria_id: el.querySelector('#ed-cat').value || null,
+      aplicar_ao_estabelecimento: !!(linhaTodas && !linhaTodas.hidden && el.querySelector('#ed-todas').checked),
     };
     if (dados.valor <= 0) { erro.textContent = 'Informe um valor maior que zero.'; return; }
     if (!dados.descricao) { erro.textContent = 'Informe uma descrição.'; return; }
@@ -90,7 +101,7 @@ export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
     const btn = e.submitter;
     ocupado(btn, true);
     try {
-      await api.editarLancamento(t.id, dados);
+      const salvo = await api.editarLancamento(t.id, dados);
       const fatura = el.querySelector('#ed-fatura')?.value;
       if (fatura !== undefined && fatura !== fixada) {
         await (fatura ? api.moverFatura(t.id, fatura) : api.faturaAutomatica(t.id));
@@ -102,7 +113,9 @@ export function abrirEdicao(t, cats, depois, { recorrencias, faturaMes } = {}) {
         });
       }
       fechar();
-      toast(futuros ? 'Atualizado deste mês em diante' : 'Lançamento atualizado');
+      const outras = salvo?.outras_atualizadas || 0;
+      toast(futuros ? 'Atualizado deste mês em diante'
+        : outras ? `Categoria aplicada a mais ${outras} compra${outras === 1 ? '' : 's'} deste lugar` : 'Lançamento atualizado');
       depois();
     } catch (ex) {
       erro.textContent = ex.message;
