@@ -46,9 +46,9 @@ export async function render(el, ctx) {
       <div id="im-lista"></div>
 
       ${cartoes.length ? `
-        <label class="field"><span class="field-label">De qual cartão é a fatura?</span>
+        <label class="field"><span class="field-label">Cartão</span>
           <select class="input" id="im-cartao">
-            <option value="">Nenhum (só registrar os gastos)</option>
+            <option value="">Reconhecer pelo número impresso na fatura</option>
             ${cartoes.map((c) => `<option value="${c.id}">${esc(c.nome)}${c.final ? ` •••• ${esc(c.final)}` : ''}</option>`).join('')}
           </select></label>` : ''}
 
@@ -127,10 +127,14 @@ export async function render(el, ctx) {
     }
 
     $('#im-envio').hidden = true;
-    // Com cartão, tudo o que veio numa fatura fica nela (a data da compra não decide o mês)
-    const cartaoId = $('#im-cartao')?.value || null;
+    // Cada fatura tem o seu cartão (reconhecido pelo número impresso nela) e o seu mês; com cartão,
+    // tudo o que veio na fatura fica nela (a data da compra não decide o mês)
+    const cartaoGeral = $('#im-cartao')?.value || null;
     const lidosOk = lidos.filter((a) => !a.erro && a.itens);
     const faturaPorArquivo = new Map(lidosOk.map((a) => [a.nome, a.fatura_mes || mesAtual()]));
+    const cartaoPorArquivo = new Map(lidosOk.map((a) => [a.nome, a.cartao_id || cartaoGeral]));
+    const opcoesCartao = (sel) => `<option value="">Sem cartão (só os gastos)</option>`
+      + cartoes.map((c) => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.nome)}${c.final ? ` •••• ${esc(c.final)}` : ''}</option>`).join('');
     const opcoesFatura = (sugerido) => [-3, -2, -1, 0, 1, 2]
       .map((d) => somarMeses(sugerido, d))
       .map((m) => `<option value="${m}" ${m === sugerido ? 'selected' : ''}>Vence em ${nomeMes(m).toLowerCase()}</option>`).join('');
@@ -151,13 +155,19 @@ export async function render(el, ctx) {
         ${noApp ? `<div class="aviso">${noApp} ${plural(noApp, 'lançamento já está', 'lançamentos já estão')} no app (mesma data, valor e descrição) e ${plural(noApp, 'veio desmarcado', 'vieram desmarcados')}.</div>` : ''}
         ${repetidos ? `<div class="aviso">${repetidos} ${plural(repetidos, 'lançamento aparece', 'lançamentos aparecem')} em mais de um arquivo e ${plural(repetidos, 'a cópia veio desmarcada', 'as cópias vieram desmarcadas')}.</div>` : ''}
         ${problemas.map((a) => `<div class="aviso"><strong>${esc(a.nome)}:</strong> ${esc(a.erro)}</div>`).join('')}
-        ${cartaoId ? `
+        ${lidosOk.length ? `
         <div class="rv-faturas">
           ${lidosOk.map((a) => `
-            <label class="field"><span class="field-label">${lidosOk.length > 1 ? `Fatura de ${esc(a.nome)}` : 'De qual fatura são essas compras?'}</span>
-              <select class="input" data-fatura-arquivo="${esc(a.nome)}">${opcoesFatura(faturaPorArquivo.get(a.nome))}</select></label>`).join('')}
-          <p class="muted small">Tudo o que veio na fatura entra nela, mesmo as compras com data do mês anterior. As parcelas seguintes vão para as próximas faturas.</p>
-        </div>` : `<p class="muted small">Escolha o cartão na tela anterior para as compras ficarem na fatura certa.</p>`}
+            <div class="rv-fatura">
+              <span class="field-label">${lidosOk.length > 1 ? esc(a.nome) : 'Esta fatura'}${a.final ? ` · cartão final ${esc(a.final)}` : ''}</span>
+              <div class="rv-fatura-campos">
+                <select class="input" data-cartao-arquivo="${esc(a.nome)}" aria-label="Cartão">${opcoesCartao(cartaoPorArquivo.get(a.nome))}</select>
+                <select class="input" data-fatura-arquivo="${esc(a.nome)}" aria-label="Fatura" ${cartaoPorArquivo.get(a.nome) ? '' : 'hidden'}>${opcoesFatura(faturaPorArquivo.get(a.nome))}</select>
+              </div>
+              ${a.final && !a.cartao_id ? `<span class="muted small">Nenhum cartão cadastrado com final ${esc(a.final)}. Escolha um ou cadastre em Cartões.</span>` : ''}
+            </div>`).join('')}
+          <p class="muted small">Tudo o que veio na fatura entra nela, mesmo as compras com data do mês anterior. As parcelas seguintes vão para as próximas faturas, sem repetir as que já vieram em outra fatura.</p>
+        </div>` : ''}
         <label class="switch-linha"><span class="small strong">Selecionar todos</span><input type="checkbox" class="switch" id="rv-todos"></label>
       </section>
 
@@ -232,6 +242,11 @@ export async function render(el, ctx) {
     box.querySelectorAll('[data-fatura-arquivo]').forEach((sel) => sel.addEventListener('change', () => {
       faturaPorArquivo.set(sel.dataset.faturaArquivo, sel.value);
     }));
+    box.querySelectorAll('[data-cartao-arquivo]').forEach((sel) => sel.addEventListener('change', () => {
+      const nome = sel.dataset.cartaoArquivo;
+      cartaoPorArquivo.set(nome, sel.value || null);
+      box.querySelector(`[data-fatura-arquivo="${CSS.escape(nome)}"]`).hidden = !sel.value;
+    }));
     $('#rv-voltar').addEventListener('click', () => { box.innerHTML = ''; $('#im-envio').hidden = false; });
 
     $('#rv-salvar').addEventListener('click', async (e) => {
@@ -239,17 +254,19 @@ export async function render(el, ctx) {
         data: i.data, descricao: i.descricao, valor: i.valor, tipo: i.tipo,
         categoria_id: estado.get(i.id).categoria_id, categoria_sugerida: i.categoria_sugerida,
         parcela_atual: i.parcela_atual, total_parcelas: i.total_parcelas,
-        fatura_mes: cartaoId ? faturaPorArquivo.get(i.arquivo) || null : null,
+        cartao_id: cartaoPorArquivo.get(i.arquivo) || null,
+        fatura_mes: cartaoPorArquivo.get(i.arquivo) ? faturaPorArquivo.get(i.arquivo) || null : null,
       }));
       const btn = e.currentTarget;
       ocupado(btn, true, 'Importando…');
       try {
-        const r = await api.confirmarImportacao({ cartao_id: $('#im-cartao')?.value || null, itens: escolhidos });
+        const r = await api.confirmarImportacao({ itens: escolhidos });
         toast(`${r.importados} lançamento${r.importados === 1 ? '' : 's'} importado${r.importados === 1 ? '' : 's'}`
           + (r.duplicados ? ` · ${r.duplicados} repetido${r.duplicados === 1 ? '' : 's'} ignorado${r.duplicados === 1 ? '' : 's'}` : ''));
-        const faturas = [...new Set(escolhidos.map((i) => i.fatura_mes).filter(Boolean))].sort();
-        if (cartaoId && faturas.length) {
-          ctx.ir(`#/cartoes?id=${cartaoId}&mes=${faturas.at(-1)}`);   // mostra a fatura importada
+        const comFatura = escolhidos.filter((i) => i.cartao_id && i.fatura_mes).sort((a, b) => a.fatura_mes.localeCompare(b.fatura_mes));
+        if (comFatura.length) {
+          const ultima = comFatura.at(-1);
+          ctx.ir(`#/cartoes?id=${ultima.cartao_id}&mes=${ultima.fatura_mes}`);   // mostra a fatura importada
         } else {
           const maisRecente = escolhidos.map((i) => i.data).sort().at(-1);
           ctx.ir(`#/lancamentos?mes=${maisRecente.slice(0, 7)}`);
