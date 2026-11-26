@@ -130,7 +130,7 @@ async function atualizarLateral() {
       <a href="#/inicio" class="side-card">
         <span class="muted small">${esc(meta.nome)}: pode gastar hoje</span>
         <strong class="valor">${money(hoje)}</strong>
-        <span class="muted small">${money(Math.max(0, meta.restante))} até domingo · ${meta.dias_restantes + 1} dia${meta.dias_restantes ? 's' : ''}</span>
+        <span class="muted small">${money(Math.max(0, meta.restante))} até ${meta.periodo === 'mes' || meta.semanas > 1 ? (meta.periodo_fim || '').slice(8, 10) + '/' + (meta.periodo_fim || '').slice(5, 7) : 'domingo'} · ${meta.dias_restantes + 1} dia${meta.dias_restantes ? 's' : ''}</span>
       </a>`;
   } catch { box.innerHTML = ''; }
 }

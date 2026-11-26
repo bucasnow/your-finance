@@ -3,9 +3,9 @@ import { comparativoChart } from '../charts.js';
 import { abrirCategoria, ligarQuadro, quadroCategorias } from './categorias-gasto.js';
 import { icon } from '../icons.js';
 import { abrirEdicao } from './lancamento-edicao.js';
-import { abrirMeta } from './meta.js';
-import { catIcon, categoriaPorId, linhaLancamento, toast } from '../ui.js';
-import { brl, compact, esc, mesAtual, mesCurto, mesValido, money, nomeMes, pct, somarMeses } from '../utils.js';
+import { abrirMeta, nomePeriodo } from './meta.js';
+import { catIcon, categoriaPorId, confirmar, linhaLancamento, toast } from '../ui.js';
+import { brl, compact, ddmm, esc, mesAtual, mesCurto, mesValido, money, nomeMes, pct, somarMeses } from '../utils.js';
 
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
@@ -38,6 +38,76 @@ function visaoEscolhida(params) {
   const v = params.get('visao');
   if (v === 'caixa' || v === 'competencia') return v;
   try { return localStorage.getItem(CHAVE_VISAO) === 'competencia' ? 'competencia' : 'caixa'; } catch { return 'caixa'; }
+}
+
+const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+/** Cartão de uma meta: quanto já foi no período atual. O histórico fica na aba Lançamentos. */
+function cardMeta(m) {
+  const periodo = nomePeriodo(m);
+  const fem = ['semana', 'quinzena'].includes(periodo);
+  const cor = m.percentual > 100 ? 'var(--neg)' : m.percentual > 80 ? 'var(--warn)' : 'var(--accent)';
+  const resto = m.dias_restantes > 0 && m.restante > 0
+    ? `Faltam ${m.dias_restantes} dia${m.dias_restantes > 1 ? 's' : ''} ${fem ? 'nesta' : 'neste'} ${periodo} · dá uns ${money(m.restante / (m.dias_restantes + 1))} por dia, contando hoje`
+    : m.dias_restantes > 0 ? `Faltam ${m.dias_restantes} dia${m.dias_restantes > 1 ? 's' : ''} ${fem ? 'nesta' : 'neste'} ${periodo}` : `Último dia ${fem ? 'da' : 'do'} ${periodo}`;
+  return `
+    <section class="card meta-card">
+      <div class="card-head">
+        <div><h2 class="card-title">${esc(m.nome)}</h2>
+          <span class="muted small">${fem ? 'Nesta' : 'Neste'} ${periodo} · ${ddmm(m.periodo_inicio)} a ${ddmm(m.periodo_fim)}</span></div>
+        <button class="icon-btn" type="button" data-meta-menu="${m.id}" aria-label="Opções da meta ${esc(m.nome)}" aria-haspopup="menu">
+          <span class="tres-pontos" aria-hidden="true">⋯</span></button>
+      </div>
+      <div class="meta-topo">
+        <div><span class="hero-val ${m.restante < 0 ? 'neg' : ''}" style="font-size:30px">${money(m.gasto)}</span>
+          <span class="muted"> de ${money(m.valor)}</span></div>
+        <span class="badge ${m.restante < 0 ? 'neg' : 'pos'}">${m.restante < 0 ? `Passou ${money(-m.restante)}` : `Pode gastar ${money(m.restante)}`}</span>
+      </div>
+      <div class="bar thick"><span style="width:${Math.min(100, m.percentual)}%;background:${cor}"></span></div>
+      <p class="small muted">${resto}</p>
+      ${m.por_dia?.length === 7 ? `
+      <div class="meta-dias">
+        ${DIAS_CURTOS.map((d, i) => {
+          const maxDia = Math.max(...m.por_dia, m.valor / 7);
+          return `<div class="meta-dia ${i === 6 - m.dias_restantes ? 'hoje' : ''}" title="${d}: ${money(m.por_dia[i])}">
+            <span class="meta-barra"><span style="height:${(m.por_dia[i] / maxDia) * 100}%"></span></span>
+            <span class="small muted">${d}</span></div>`;
+        }).join('')}
+      </div>` : ''}
+      <a class="small link" href="#/lancamentos?mes=${m.periodo_inicio.slice(0, 7)}&ver=metas">Ver períodos anteriores em Lançamentos</a>
+    </section>`;
+}
+
+/** Menu ⋯ da meta: editar, nova meta, excluir. */
+function menuMeta(botao, meta, cats, ctx) {
+  document.querySelectorAll('.menu-flutuante').forEach((m) => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'menu-flutuante';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    <button type="button" role="menuitem" data-acao="editar">${icon('editar', 16)}Editar meta</button>
+    <button type="button" role="menuitem" data-acao="nova">${icon('mais', 16, 2.4)}Nova meta</button>
+    <button type="button" role="menuitem" data-acao="excluir" class="perigo">${icon('lixo', 16)}Excluir meta</button>`;
+  document.body.appendChild(menu);
+  const r = botao.getBoundingClientRect();
+  menu.style.top = `${r.bottom + window.scrollY + 6}px`;
+  menu.style.left = `${Math.max(12, r.right + window.scrollX - menu.offsetWidth)}px`;
+  const fechar = () => { menu.remove(); document.removeEventListener('mousedown', fora, true); };
+  const fora = (e) => { if (!menu.contains(e.target) && e.target !== botao) fechar(); };
+  document.addEventListener('mousedown', fora, true);
+  menu.querySelector('button').focus();
+  menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
+  menu.addEventListener('click', async (e) => {
+    const acao = e.target.closest('[data-acao]')?.dataset.acao;
+    if (!acao) return;
+    fechar();
+    if (acao === 'editar') abrirMeta(meta, cats, ctx.recarregar);
+    if (acao === 'nova') abrirMeta(null, cats, ctx.recarregar);
+    if (acao === 'excluir') {
+      if (!await confirmar('Excluir meta', `Excluir a meta "${meta.nome}"? Seus lançamentos não mudam.`, [{ valor: true, rotulo: 'Excluir meta', perigo: true }])) return;
+      try { await api.excluirMeta(meta.id); toast('Meta excluída'); ctx.recarregar(); } catch (ex) { toast(ex.message, 'erro'); }
+    }
+  });
 }
 
 export async function render(el, ctx) {
@@ -74,7 +144,6 @@ export async function render(el, ctx) {
   else if (r.patrimonio >= -resultado) situacao = `Mês no vermelho em ${money(-resultado)}, coberto pelo que você tem guardado (ficaria ${money(r.patrimonio + resultado)}).`;
   else if (r.patrimonio > 0) situacao = `Mês no vermelho em ${money(-resultado)}: mais do que o guardado (${money(r.patrimonio)}).`;
   else situacao = `Mês no vermelho em ${money(-resultado)}.`;
-  const meta = metas[0];
 
   el.innerHTML = `
     <header class="page-head">
@@ -155,37 +224,11 @@ export async function render(el, ctx) {
       </article>
     </section>
 
-    ${meta ? `
+    ${metas.length ? metas.map((m) => cardMeta(m)).join('') : `
     <section class="card meta-card">
-      <div class="card-head">
-        <h2 class="card-title">${esc(meta.nome)} da semana</h2>
-        <button class="icon-btn" type="button" id="meta-editar" aria-label="Editar meta">${icon('editar', 18)}</button>
-      </div>
-      <div class="meta-topo">
-        <div><span class="hero-val ${meta.restante < 0 ? 'neg' : ''}" style="font-size:30px">${money(meta.gasto)}</span>
-          <span class="muted"> de ${money(meta.valor)}</span></div>
-        <span class="badge ${meta.restante < 0 ? 'neg' : 'pos'}">${meta.restante < 0 ? `Passou ${money(-meta.restante)}` : `Pode gastar ${money(meta.restante)}`}</span>
-      </div>
-      <div class="bar thick"><span style="width:${Math.min(100, meta.percentual)}%;background:${meta.percentual > 100 ? 'var(--neg)' : meta.percentual > 80 ? 'var(--warn)' : 'var(--accent)'}"></span></div>
-      <p class="small muted">${meta.dias_restantes > 0 && meta.restante > 0
-        ? `Faltam ${meta.dias_restantes} dia${meta.dias_restantes > 1 ? 's' : ''} na semana · dá uns ${money(meta.restante / (meta.dias_restantes + 1))} por dia, contando hoje`
-        : meta.dias_restantes > 0 ? `Faltam ${meta.dias_restantes} dia${meta.dias_restantes > 1 ? 's' : ''} na semana` : 'Último dia da semana'}</p>
-      <div class="meta-dias">
-        ${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d, i) => {
-          const maxDia = Math.max(...meta.por_dia, meta.valor / 7);
-          return `<div class="meta-dia ${i === 6 - meta.dias_restantes ? 'hoje' : ''}" title="${d}: ${money(meta.por_dia[i])}">
-            <span class="meta-barra"><span style="height:${(meta.por_dia[i] / maxDia) * 100}%"></span></span>
-            <span class="small muted">${d}</span></div>`;
-        }).join('')}
-      </div>
-      <div class="meta-semanas small">
-        ${meta.historico.slice(0, -1).map((s) => `<span class="${s.gasto > meta.valor ? 'neg' : 'muted'}">${s.inicio.slice(8, 10)}/${s.inicio.slice(5, 7)}: ${money(s.gasto)}</span>`).join('')}
-      </div>
-    </section>` : `
-    <section class="card meta-card">
-      <div class="card-head"><h2 class="card-title">Meta semanal de comida</h2></div>
-      <p class="muted small">Defina quanto quer gastar por semana com comida (ex.: R$ 600) e acompanhe aqui quanto já foi.</p>
-      <button class="btn btn-ghost" type="button" id="meta-editar">${icon('mais', 18, 2.4)}Definir meta</button>
+      <div class="card-head"><h2 class="card-title">Metas</h2></div>
+      <p class="muted small">Defina quanto quer gastar numa semana, quinzena ou mês com as categorias que escolher (ex.: R$ 600 por semana com comida) e acompanhe aqui quanto já foi.</p>
+      <button class="btn btn-ghost" type="button" data-meta-nova>${icon('mais', 18, 2.4)}Definir meta</button>
     </section>`}
 
     <section class="grid-3">
@@ -230,7 +273,10 @@ export async function render(el, ctx) {
     ],
   });
 
-  el.querySelector('#meta-editar').addEventListener('click', () => abrirMeta(meta || null, cats, ctx.recarregar));
+  el.querySelector('[data-meta-nova]')?.addEventListener('click', () => abrirMeta(null, cats, ctx.recarregar));
+  el.querySelectorAll('[data-meta-menu]').forEach((b) => b.addEventListener('click', () => {
+    menuMeta(b, metas.find((m) => m.id === b.dataset.metaMenu), cats, ctx);
+  }));
 
   el.querySelector('#in-visao').addEventListener('click', (e) => {
     const v = e.target.closest('[data-v]')?.dataset.v;

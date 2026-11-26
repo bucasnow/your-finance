@@ -159,6 +159,7 @@ export const api = {
   alterarRecorrencia: (id, dados) => req('PUT', `/recorrencias/${id}`, dados),
 
   metas: () => req('GET', '/metas'),
+  metasDoMes: (mes) => req('GET', `/metas/mes?mes=${mes}`),
   criarMeta: (dados) => req('POST', '/metas', dados),
   editarMeta: (id, dados) => req('PUT', `/metas/${id}`, dados),
   excluirMeta: (id) => req('DELETE', `/metas/${id}`),
