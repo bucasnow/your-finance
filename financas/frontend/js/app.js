@@ -246,7 +246,7 @@ document.addEventListener('fin:entrou', () => {
 });
 
 // Chegaram dados mais novos do que os mostrados: redesenha de leve, se a pessoa não estiver digitando
-const TELAS_SO_LEITURA = ['#/inicio', '#/lancamentos', '#/cartoes', '#/investimentos'];
+const TELAS_SO_LEITURA = ['#/inicio', '#/lancamentos', '#/cartoes', '#/investimentos', '#/conta'];
 let redesenho = null;
 document.addEventListener('fin:dados-novos', () => {
   clearTimeout(redesenho);
